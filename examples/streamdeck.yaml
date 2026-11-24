@@ -1,0 +1,113 @@
+# Sample config. The format is explained in docs/CONFIG.md.
+# Check it with: python -m renderer check examples/streamdeck.yaml
+
+panels:
+  hallway:
+    id: sd-3c71bf              # the ID a new panel shows on its keys
+    size: mini                 # mini, module6, module15, module32 or plus
+    brightness:                # or just a number, e.g. brightness: 70
+      default: 70
+      schedule:                # each step lasts until the next one
+        - { at: "07:00", level: 70 }
+        - { at: sunset, level: 40 }
+        - { at: "22:30", level: 15 }
+    sleep:                     # show the clock, dimmed...
+      after_minutes: 10        # ...after 10 minutes with no presses
+      between: ["22:00", "07:00"]  # ...and all night
+      awake_seconds: 120       # woken at night, sleep again after 2 minutes with no presses
+      page: clock
+      brightness: 5
+    start_page: home
+    pages:
+      home:
+        buttons:
+          - key: 1
+            entity: light.hallway
+            text: Hall         # tap toggles a light by default
+            hold: { go_to: lights }
+            when:
+              "on": { icon: mdi:lightbulb, background: amber, icon_color: dark }
+              "off": { icon: mdi:lightbulb-outline, background: black, icon_color: grey }
+          - key: 2
+            entity: sensor.outside_temperature
+            text: "{{ states('sensor.outside_temperature') }}°"
+            tap: none
+            icon: mdi:thermometer
+          - key: 3
+            entity: cover.garage_door
+            text: Garage
+            confirm: true      # press twice to run
+            when:
+              open: { icon: mdi:garage-open, background: red, icon_color: white }
+              closed: { icon: mdi:garage, background: black, icon_color: grey }
+          - key: 5
+            text: Lights
+            tap: { go_to: lights }
+            icon: mdi:folder
+            background: grey
+          - key: 6
+            text: Clock
+            tap: { go_to: clock }
+            icon: mdi:clock-outline
+      lights:
+        buttons:
+          - key: 1
+            entity: light.hallway_ceiling
+            text: Ceiling
+            style: light
+          - key: 2
+            entity: light.hallway_lamp
+            text: Lamp
+            style: light
+          - key: 3
+            entity: scene.movie_night
+            text: Movie
+            tap: { action: scene.turn_on }
+            icon: mdi:television
+            background: purple
+          - key: 6
+            text: Back
+            tap: back
+            icon: mdi:arrow-left
+      clock:
+        image: { type: clock, style: digit_per_key, font: montserrat }
+        brightness: 30         # this page's own brightness
+        tap_any: back
+
+  kitchen:
+    id: sd-a1b2c3
+    size: module15
+    brightness: { follow: input_number.kitchen_panel_brightness }  # an HA slider your automations can set
+    pages:
+      home:
+        buttons:
+          - key: 1
+            entity: light.kitchen
+            text: Kitchen
+            style: light
+          - key: 4
+            lights: { area: kitchen }        # every light in the HA area "kitchen"
+            tap: toggle                      # any on: all off; all off: all on
+            text: All kitchen
+            when:
+              any_on: { icon: mdi:home, background: amber, icon_color: dark }
+              all_off: { icon: mdi:home, background: black, icon_color: grey }
+          - key: 6
+            lights: { floor: ground_floor }  # every light on the HA floor "ground_floor"
+            tap: turn_off
+            text: Floor 1 off
+            when:
+              any_on: { icon: mdi:home, background: grey, icon_color: amber }
+              all_off: { icon: mdi:home, background: black, icon_color: grey }
+          - key: 11
+            entity: script.goodnight
+            tap: { action: script.turn_on }
+            text: Goodnight
+            icon: mdi:weather-night
+            background: blue
+
+# Looks you can reuse with style: on any button
+styles:
+  light:
+    icon: mdi:lightbulb
+    text_position: bottom

@@ -1,0 +1,35 @@
+# Waveshare ESP32-P4-WIFI6-POE-ETH: Ethernet with PoE (IP101 PHY), deck on the high-speed
+# USB-A port, 32 MB PSRAM, logs on the USB-C (UART) port. Wi-Fi is on a separate ESP32-C6
+# running ESP-Hosted, on SDIO (GPIO14-19) with its reset on GPIO54: esp_hosted's defaults for
+# a P4 with a C6, which this board follows.
+#
+# Silicon v3.x (current boards). For a v1.x chip, build with
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32p4;sdkconfig.defaults.esp32p4-rev1" ...
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_128B=y
+
+CONFIG_ETH_ENABLED=y
+CONFIG_ETH_USE_ESP32_EMAC=y
+CONFIG_ETH_PHY_INTERFACE_RMII=y
+CONFIG_ETH_RMII_CLK_INPUT=y
+
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# Periodic TX FIFO bias: room for 1024-byte high-speed interrupt OUT packets (see
+# kMaxPeriodicOut in StreamDeck.cpp and components/usb). 512-byte packets under the balanced
+# split time out on a Stream Deck Mini.
+CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT=y
+
+# Keeps the bootloader under the 0x8000 partition-table boundary (it has ~64 bytes to spare otherwise)
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
+# The board has 32 MB of flash
+CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+
+# Wi-Fi through the ESP32-C6. A board on Ethernet still starts the SDIO link at boot (esp_hosted
+# does that itself), so a C6 that stops answering must not restart the whole bridge.
+CONFIG_ESP_HOSTED_TRANSPORT_RESTART_ON_FAILURE=n
+CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
+CONFIG_SLAVE_IDF_TARGET_ESP32C6=y

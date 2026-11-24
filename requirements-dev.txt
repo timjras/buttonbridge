@@ -1,0 +1,2 @@
+-r buttonbridge/requirements.txt
+pytest>=8

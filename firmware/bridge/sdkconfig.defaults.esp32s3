@@ -1,0 +1,12 @@
+# ESP32-S3 N16R8 (16 MB quad flash, 8 MB octal PSRAM): Wi-Fi, deck on the native USB port
+# through an OTG adapter. The S3's USB is full speed only: a Mini takes ~320 ms per key.
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# Logs on the UART (COM) port, and also on the native USB port while a computer is on it.
+# With a Stream Deck there, the USB host stack has the port.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+
+# USB host FIFOs biased towards IN packets (see ESPDeck: the MK.2 Scissor's 512-byte IN endpoint)
+CONFIG_USB_HOST_HW_BUFFER_BIAS_IN=y

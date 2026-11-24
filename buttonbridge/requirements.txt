@@ -1,0 +1,7 @@
+pydantic>=2.6
+pyyaml>=6.0
+pillow>=10.1
+websockets>=12
+zeroconf>=0.130
+aiohttp>=3.9
+tzdata>=2024.1

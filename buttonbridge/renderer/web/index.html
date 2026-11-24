@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ButtonBridge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&family=Montserrat:wght@800&family=Oswald:wght@600&family=Roboto+Condensed:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: HA-style sidebar page. Panel list | live panel with page tabs | Panel/Page/Key settings. YAML drawer under the panel. */
+:root {
+  --bg: #eef0f3; --surface: #ffffff; --surface-2: #f6f7f9; --ink: #1b1f25; --muted: #5b6370;
+  --line: #dcdfe5; --accent: #2a63cf; --accent-ink: #ffffff; --accent-soft: #e3ebfa;
+  --warn: #b4540a; --ok: #1f7a46; --danger: #c0392b;
+  --deck: #0f1114; --deck-edge: #2a2d33;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --key: 88px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111317; --surface: #191c21; --surface-2: #1f2329; --ink: #e6e8eb; --muted: #9aa1ab;
+  --line: #2b3038; --accent: #6b9bf2; --accent-ink: #0d1320; --accent-soft: #1d2a42;
+  --warn: #f0a35e; --ok: #6fcf97; --danger: #ef7d6f; --deck: #07080a; --deck-edge: #30343b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #191c21; --surface-2: #1f2329; --ink: #e6e8eb; --muted: #9aa1ab;
+  --line: #2b3038; --accent: #6b9bf2; --accent-ink: #0d1320; --accent-soft: #1d2a42;
+  --warn: #f0a35e; --ok: #6fcf97; --danger: #ef7d6f; --deck: #07080a; --deck-edge: #30343b; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45 }
+button, input, select, textarea { font: inherit; color: inherit }
+.wrap { padding-inline: 16px; padding-block: 12px 32px; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px }
+header h1 { font-size: 18px; font-weight: 600; margin: 0 }
+.pill { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600 }
+.spacer { flex: 1 }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface) }
+.seg button { border: 0; background: none; padding: 6px 14px; cursor: pointer; color: var(--muted) }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 6px 14px; border-radius: 8px; cursor: pointer }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.btn.small { padding: 3px 10px; font-size: 13px }
+.btn.danger { color: var(--danger) }
+.btn.danger.armed { background: var(--danger); border-color: var(--danger); color: #fff }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.grid { display: grid; grid-template-columns: 210px minmax(0, 1fr) 330px; gap: 12px; align-items: start }
+@media (max-width: 1050px) { .grid { grid-template-columns: minmax(0, 1fr) } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0 }
+.card h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; padding: 12px 14px 6px; font-weight: 600 }
+
+/* Sidebar */
+.targets { list-style: none; margin: 0; padding: 0 6px 8px; display: flex; flex-direction: column; gap: 2px }
+.targets button { width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: 7px; cursor: pointer; display: flex; flex-direction: column }
+.targets button[aria-current="true"] { background: var(--accent-soft) }
+.targets .name { font-weight: 600 }
+.targets .meta { font-size: 12px; color: var(--muted) }
+.newpanel { margin: 4px 10px 12px; padding: 10px; border: 1px dashed var(--warn); border-radius: 8px; display: flex; flex-direction: column; gap: 6px }
+.newpanel .meta { font-size: 12px; color: var(--muted) }
+.newpanel code { font-family: var(--mono); font-size: 12.5px }
+.newpanel input, .newpanel select { width: 100%; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2) }
+
+/* Stage */
+.stagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 12px 14px 0 }
+.stagehead h2 { padding: 0; font-size: 16px; letter-spacing: 0; text-transform: none; color: var(--ink) }
+.stagehead .meta { color: var(--muted); font-size: 12.5px }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line) }
+.tab { display: inline-flex; align-items: center; border-bottom: 2px solid transparent }
+.tab[aria-selected="true"] { border-bottom-color: var(--accent) }
+.tab > button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 7px 4px 7px 10px }
+.tab[aria-selected="true"] > button.tabname { color: var(--ink); font-weight: 600 }
+.tab .start { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-left: 4px; font-weight: 500 }
+.tab .x { padding: 4px 8px; font-size: 15px; line-height: 1; border-radius: 6px }
+.tab .x:hover { color: var(--danger); background: var(--surface-2) }
+.tab.confirm { gap: 6px; padding: 4px 8px; color: var(--danger); font-size: 13px }
+.tab.confirm button { padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+.tabs .addpage { border: 0; background: none; cursor: pointer; color: var(--accent); padding: 7px 10px; font-weight: 500 }
+.stage { padding: 20px 12px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; overflow-x: auto }
+.deck { background: var(--deck); border: 1px solid var(--deck-edge); border-radius: 14px; padding: calc(var(--key) * .18); box-shadow: 0 6px 18px rgba(0,0,0,.25) }
+.keys { display: grid; gap: calc(var(--key) * .22) }
+.keys { transition: filter .3s }
+.sched { display: grid; grid-template-columns: 1fr 64px 26px; gap: 6px; align-items: center }
+.sched input { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); width: 100%; min-width: 0 }
+.sched .x { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 16px }
+.inline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
+.inline input[type=text], .inline input[type=number] { width: 72px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2) }
+.inline.trig { gap: 4px; flex-wrap: nowrap; white-space: nowrap }
+.inline.trig input[type=number] { width: 46px; padding: 4px 5px }
+.inline.trig input[type=text] { width: 54px; padding: 4px 5px }
+.key { width: var(--key); height: var(--key); border-radius: calc(var(--key) * .11); display: block; cursor: pointer; background: #1c1f24 }
+.key.sel { outline: 3px solid var(--accent); outline-offset: 3px }
+.strip { display: grid; margin-top: calc(var(--key) * .22); border-radius: calc(var(--key) * .08); overflow: hidden; transition: filter .3s }
+.strip canvas { width: 100%; min-width: 0; display: block; cursor: pointer }
+.strip canvas + canvas { border-left: 1px solid #000 }
+.strip canvas.sel { outline: 3px solid var(--accent); outline-offset: -3px }
+.knobs { display: grid; margin-top: calc(var(--key) * .2); justify-items: center }
+.knob { width: calc(var(--key) * .62); height: calc(var(--key) * .62); border-radius: 50%; border: 2px solid #3a3e45; background: radial-gradient(circle at 35% 30%, #4a4f57, #1d2025 70%); cursor: pointer; padding: 0; color: #c9cdd3; font-size: 18px; line-height: 1 }
+.knob.sel { outline: 3px solid var(--accent); outline-offset: 3px }
+.turn { display: flex; gap: 3px; align-items: center }
+.turn .knob { width: calc(var(--key) * .4); height: calc(var(--key) * .4) }
+.turn button.step { border: 1px solid #3a3e45; background: #1d2025; color: #e6e8eb; border-radius: 6px; width: 22px; height: 22px; cursor: pointer; padding: 0; font-size: 15px; line-height: 1 }
+.key.drop, .knob.drop { outline: 3px dashed #f2a516; outline-offset: 3px }
+.strip canvas.drop { outline: 3px dashed #f2a516; outline-offset: -3px }
+.strip.dragging canvas, .knobs.dragging .knob { cursor: grabbing }
+.hint { color: var(--muted); font-size: 13px; text-align: center; max-width: 62ch; margin: 0 }
+.trylog { font-family: var(--mono); font-size: 12.5px; color: var(--ok); min-height: 1.4em }
+
+details.yaml { border-top: 1px solid var(--line) }
+details.yaml summary { padding: 10px 14px; cursor: pointer; color: var(--muted); font-size: 13px }
+details.yaml pre { margin: 0; padding: 0 14px 14px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; overflow-x: auto; white-space: pre }
+
+/* Inspector */
+.itabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px }
+.itabs button { border: 0; background: none; padding: 10px 12px 8px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font-weight: 500 }
+.itabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+.itabs button:disabled { opacity: .45; cursor: default }
+.insp { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 14px }
+.sect { display: flex; flex-direction: column; gap: 8px }
+.sect > .head { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600 }
+.field { display: flex; flex-direction: column; gap: 4px }
+.field > label, .field > .lab { font-size: 12px; color: var(--muted); font-weight: 500 }
+.field input[type=text], .field select, .field textarea { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); width: 100%; min-width: 0 }
+.field textarea { font-family: var(--mono); font-size: 12.5px; resize: vertical; min-height: 54px }
+.field .note { font-size: 12px; color: var(--muted) }
+.field .note.bad { color: var(--danger) }
+.field input[type=range] { width: 100% }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+.kinds button { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); cursor: pointer; text-align: left; font-size: 13px; line-height: 1.25 }
+.kinds button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600 }
+.kinds svg { width: 18px; height: 18px; flex: none; fill: currentColor }
+.looks { display: grid; gap: 8px }
+.look { border: 1px solid var(--line); border-radius: 9px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2) }
+.look .lt { display: flex; align-items: center; gap: 10px }
+.look .lt strong { font-size: 13px }
+.look .lt .state { font-family: var(--mono); font-size: 12px; color: var(--muted) }
+.look canvas { width: 44px; height: 44px; border-radius: 6px; flex: none }
+.iconbtn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; font-size: 13px }
+.iconbtn svg { width: 18px; height: 18px; fill: currentColor }
+.icons { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px }
+.icons button { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; display: grid; place-items: center; padding: 0 }
+.icons button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft) }
+.icons svg { width: 74%; height: 74%; fill: currentColor }
+.swrow { display: flex; align-items: center; gap: 8px }
+.swrow .lab { font-size: 12px; color: var(--muted); width: 70px; flex: none }
+.swatches { display: flex; gap: 4px; flex-wrap: wrap }
+.swatches button { width: 20px; height: 20px; border-radius: 5px; border: 2px solid var(--line); cursor: pointer; padding: 0 }
+.swatches button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--surface) inset }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.empty { text-align: center; padding: 8px 0; display: flex; flex-direction: column; gap: 8px; align-items: center; color: var(--muted) }
+.mono { font-family: var(--mono); font-size: 13px }
+.states { display: flex; flex-direction: column; gap: 2px }
+.states .state { font-size: 12px; font-family: var(--mono); color: var(--muted) }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 32px) }
+
+@font-face { font-family: "MDI"; src: url("api/mdi.ttf") format("truetype"); font-display: block }
+.mdi { font-family: "MDI"; font-size: 20px; line-height: 1; display: inline-block; width: 1em; text-align: center }
+.icons .mdi { font-size: 22px }
+.status { font-size: 13px; color: var(--muted) }
+.status .bad { color: var(--danger) }
+.btn:disabled { opacity: .5; cursor: default }
+html, body { margin: 0; min-height: 100% }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>ButtonBridge</h1>
+    <span class="pill" id="file">streamdeck.yaml</span>
+    <span class="status" id="status"></span>
+    <span class="spacer"></span>
+    <div class="seg" role="group" aria-label="Mode">
+      <button id="mode-edit" aria-pressed="true">Edit</button>
+      <button id="mode-try" aria-pressed="false">Try it</button>
+    </div>
+    <button class="btn primary" id="save">Save</button>
+  </header>
+
+  <div class="grid">
+    <aside class="card" id="sidebar"></aside>
+    <main class="card">
+      <div class="stagehead" id="stagehead"></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="stage" id="stage">
+        <div id="decks"></div>
+        <div class="trylog" id="trylog"></div>
+        <p class="hint" id="hint"></p>
+      </div>
+      <details class="yaml">
+        <summary>Show the YAML that Save writes</summary>
+        <pre id="yaml"></pre>
+      </details>
+    </main>
+    <aside class="card" id="inspector"></aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+
+<script>
+// The setup page. It keeps a model of every panel (S.panels), built from streamdeck.yaml by
+// fromConfig() and turned back into the file's format by toConfig(). The server checks and
+// writes the file; "Try it" runs real Home Assistant actions through the server.
+
+// ---------- Icons: the Material Design Icons font, the same one the panels are drawn with ----------
+let CODEPOINTS = {};
+const glyph = n => { const c = CODEPOINTS[(n || "").replace(/^mdi:/, "")]; return c ? String.fromCodePoint(c) : ""; };
+const svgIcon = n => `<span class="mdi" aria-hidden="true">${glyph(n) || "?"}</span>`;
+const COMMON_ICONS = ["lightbulb", "lightbulb-outline", "lightbulb-on", "ceiling-light", "ceiling-light-outline", "lamp", "floor-lamp", "led-strip-variant",
+  "power", "fan", "garage", "garage-open", "window-shutter", "window-shutter-open", "blinds", "lock", "lock-open", "door", "thermometer", "water", "music",
+  "television", "speaker", "weather-sunny", "weather-night", "home", "home-lightbulb", "bed", "sofa", "star", "clock-outline", "folder", "arrow-left",
+  "arrow-right", "play", "cog", "book-open-variant", "head-lightbulb", "silverware-fork-knife", "coffee"];
+
+// ---------- Colours: the names the config file uses, with the panel's own values ----------
+const COLORS = { black: "#000000", dark: "#1c1c1e", grey: "#5f6368", white: "#ffffff", amber: "#ffb300", blue: "#0a84ff", green: "#30d158", red: "#ff453a", purple: "#bf5af2" };
+const lightBg = bg => ["amber", "white"].includes(bg) || (/^#/.test(bg || "") && lum(bg) > 160);
+const lum = h => { const n = parseInt(h.slice(1), 16); return .299 * (n >> 16) + .587 * (n >> 8 & 255) + .114 * (n & 255); };
+const hex = c => COLORS[c] || c || "#000000";
+
+const SIZES = {
+  mini: { label: "Stream Deck Mini (6 keys)", cols: 3, rows: 2 },
+  module6: { label: "Module, 6 keys", cols: 3, rows: 2 },
+  module15: { label: "Module, 15 keys", cols: 5, rows: 3 },
+  module32: { label: "Module, 32 keys", cols: 8, rows: 4 },
+  plus: { label: "Stream Deck + (8 keys, 4 dials)", cols: 4, rows: 2, dials: 4 },
+};
+// A dial's icon and bar colour by what it controls, as the panel draws them.
+const DIAL_DEFAULTS = { light: ["mdi:lightbulb", "amber"], media_player: ["mdi:volume-high", "blue"], cover: ["mdi:window-shutter", "green"],
+  climate: ["mdi:thermostat", "red"], fan: ["mdi:fan", "blue"], input_number: ["mdi:tune-variant", "purple"], number: ["mdi:tune-variant", "purple"], timer: ["mdi:timer-outline", "red"] };
+const DIAL_DOMAINS = Object.keys(DIAL_DEFAULTS);
+const DIAL_STEPS = { light: "5%", media_player: "2%", cover: "5%", climate: "its own step, usually 0.5°", fan: "its own step, usually 10%", input_number: "the helper's step", number: "its own step", timer: "1 minute" };
+const defaultPress = e => { const d = domainOf(e); return d === "media_player" ? "play or pause" : d === "timer" ? "start, pause or resume" : !d || ["sensor", "binary_sensor", "weather", "sun", "input_number", "number"].includes(d) ? "nothing" : "toggle it"; };
+
+// What each kind of entity's two states are called, and the look each state gets by default.
+const DOMAINS = {
+  light: { states: ["on", "off"], on: { icon: "mdi:lightbulb-on", bg: "amber", fg: null }, off: { icon: "mdi:lightbulb-outline", bg: "black", fg: "grey" } },
+  switch: { states: ["on", "off"], on: { icon: "mdi:power", bg: "blue", fg: null }, off: { icon: "mdi:power", bg: "black", fg: "grey" } },
+  input_boolean: { states: ["on", "off"], on: { icon: "mdi:toggle-switch", bg: "blue", fg: null }, off: { icon: "mdi:toggle-switch-off", bg: "black", fg: "grey" } },
+  fan: { states: ["on", "off"], on: { icon: "mdi:fan", bg: "blue", fg: null }, off: { icon: "mdi:fan", bg: "black", fg: "grey" } },
+  cover: { states: ["open", "closed"], on: { icon: "mdi:window-shutter-open", bg: "grey", fg: null }, off: { icon: "mdi:window-shutter", bg: "black", fg: "grey" } },
+  lock: { states: ["unlocked", "locked"], on: { icon: "mdi:lock-open", bg: "red", fg: null }, off: { icon: "mdi:lock", bg: "green", fg: null } },
+  media_player: { states: ["playing", "paused"], on: { icon: "mdi:music", bg: "purple", fg: null }, off: { icon: "mdi:music", bg: "black", fg: "grey" } },
+  timer: { states: ["active", "idle"], on: { icon: "mdi:timer-sand", bg: "red", fg: null }, off: { icon: "mdi:timer-outline", bg: "black", fg: "grey" }, paused: { icon: "mdi:timer-pause-outline", bg: "grey", fg: null } },
+  binary_sensor: { states: ["on", "off"], on: { icon: "mdi:door-open", bg: "red", fg: null }, off: { icon: "mdi:door", bg: "black", fg: "grey" } },
+};
+const domainOf = e => (e || "").split(".")[0];
+const twoState = e => !!DOMAINS[domainOf(e)];
+const INFO_DOMAINS = ["sensor", "binary_sensor", "weather", "sun", "camera", "person", "device_tracker", "zone"];
+
+const KINDS = [
+  ["device", "Control a device", "mdi:lightbulb"],
+  ["area", "Control a room or floor", "mdi:home"],
+  ["script", "Run a script or scene", "mdi:play"],
+  ["timer", "Run a timer", "mdi:timer-outline"],
+  ["page", "Go to another page", "mdi:folder"],
+  ["back", "Go back", "mdi:arrow-left"],
+  ["info", "Show a sensor", "mdi:thermometer"],
+  ["custom", "Any HA action", "mdi:cog"],
+];
+
+// ---------- State ----------
+const S = {
+  entities: {}, names: {}, dialInfo: {}, areas: {}, floors: {}, bridges: [], sun: {}, file: "",
+  panels: {}, rawTop: {}, dirty: false, problems: [],
+  view: { panel: null, page: null, sel: null, dial: null, mode: "edit", tab: "page", history: [], iconFor: null, iconSearch: "", confirmPage: null, armed: null },
+};
+const P = () => S.panels[S.view.panel];
+const PAGE = () => P()?.pages[S.view.page];
+const dims = p => SIZES[p.size] || SIZES.mini;
+const DIALS = pg => pg.dials || (pg.dials = {});
+const areaLights = b => b.scope === "floor" ? Object.values(S.areas).filter(a => a.floor === b.target).flatMap(a => a.lights) : (S.areas[b.target]?.lights || []);
+const anyOn = b => areaLights(b).some(e => S.entities[e] === "on");
+const placeName = b => b.scope === "floor" ? (S.floors[b.target] || b.target) : (S.areas[b.target]?.name || b.target);
+
+// ---------- From the file to the model, and back ----------
+const clone = o => JSON.parse(JSON.stringify(o ?? null));
+const omit = (o, keys) => Object.fromEntries(Object.entries(o || {}).filter(([k]) => !keys.includes(k)));
+const lookFrom = (l, base) => ({ icon: l?.icon ?? base?.icon ?? null, bg: l?.background ?? base?.bg ?? null, fg: l?.icon_color ?? base?.fg ?? null });
+const lookTo = l => { const o = {}; if (l.icon) o.icon = l.icon; if (l.bg) o.background = l.bg; if (l.fg) o.icon_color = l.fg; return o; };
+const stateTemplate = e => new RegExp(`\\{\\{\\s*states\\(\\s*['"]${(e || "").replace(/\./g, "\\.")}['"]\\s*\\)\\s*\\}\\}`, "g");
+
+function buttonFrom(raw) {
+  const tap = raw.tap, e = raw.entity || "", d = domainOf(e);
+  const b = { raw: clone(raw), entity: e, label: raw.text || "", labelPos: raw.text_position || "bottom", confirm: !!raw.confirm, asleep: !!raw.asleep, tap: "toggle" };
+  if (e) b.label = b.label.replace(stateTemplate(e), "{{ state }}");
+  if (raw.lights) { Object.assign(b, { kind: "area", scope: raw.lights.floor ? "floor" : "area", target: raw.lights.floor || raw.lights.area, tap: typeof tap === "string" ? tap : "toggle" }); }
+  else if (tap && typeof tap === "object" && tap.go_to) Object.assign(b, { kind: "page", page: tap.go_to });
+  else if (tap === "back") b.kind = "back";
+  else if (tap && typeof tap === "object" && tap.action) {
+    if (/^(scene|script)\.turn_on$/.test(tap.action) && ["scene", "script"].includes(d) && !tap.target && !tap.data) b.kind = "script";
+    else Object.assign(b, { kind: "custom", action: tap.action, data: tap.data ? jsyaml(tap.data) : "", target: tap.target || null });
+  }
+  else if (tap === "none" && (!e || INFO_DOMAINS.includes(d) || ["scene", "script"].includes(d))) b.kind = "info";
+  else if (["scene", "script"].includes(d)) b.kind = "script";
+  else if (d === "timer" && (!tap || tap === "toggle")) b.kind = "timer";
+  else if (!e || INFO_DOMAINS.includes(d) && !tap) b.kind = "info";
+  else Object.assign(b, { kind: "device", tap: tap || "toggle" });
+
+  const base = { icon: raw.icon || null, bg: raw.background || null, fg: raw.icon_color || null };
+  const st = b.kind === "area" ? ["any_on", "all_off"] : DOMAINS[d]?.states;
+  if (st && raw.when && (raw.when[st[0]] || raw.when[st[1]])) b.looks = { on: lookFrom(raw.when[st[0]], base), off: lookFrom(raw.when[st[1]], base) };
+  if (b.looks && d === "timer") b.looks.paused = lookFrom(raw.when.paused || raw.when[st[0]], base);
+  b.look = { ...base };
+  b.extra = { hold: extraFrom(raw.hold), double: extraFrom(raw.double) };
+  b.countdown = raw.countdown !== false;
+  return b;
+}
+
+// Long press (hold:) and double press (double:) each run their own action, set up separately from the tap.
+const OWN = ["toggle", "turn_on", "turn_off"];
+const DIM = ["dim_brighten", "brighten", "dim"];   // long press only: steps the lights while the key is held
+const EXTRA_NAMES = { hold: "Long press", double: "Double press" };
+function extraFrom(a) {
+  const off = { on: false, kind: null, entity: "", page: null, action: "", data: "", target: null };
+  if (a == null || a === "none") return off;
+  if (typeof a === "string") return { ...off, on: true, kind: a };
+  if (a.go_to) return { ...off, on: true, kind: "page", page: a.go_to };
+  const t = a.target, te = t && Object.keys(t).length === 1 && typeof t.entity_id === "string" ? t.entity_id : null;
+  if (/^(script|scene)\.turn_on$/.test(a.action) && !a.data && (te ? domainOf(te) === a.action.split(".")[0] : !t)) return { ...off, on: true, kind: "script", entity: te || "", action: a.action };
+  return { ...off, on: true, kind: "custom", action: a.action || "", entity: te || "", target: te ? null : (t || null), data: a.data ? jsyaml(a.data) : "" };
+}
+function extraTo(x) {
+  if (OWN.includes(x.kind) || DIM.includes(x.kind) || x.kind === "back") return x.kind;
+  if (x.kind === "page") return { go_to: x.page };
+  if (x.kind === "script") {
+    const o = { action: x.entity ? `${domainOf(x.entity) === "scene" ? "scene" : "script"}.turn_on` : (x.action || "script.turn_on") };
+    if (x.entity) o.target = { entity_id: x.entity };
+    return o;
+  }
+  const o = { action: x.action || "" };
+  if (x.entity) o.target = { entity_id: x.entity }; else if (x.target) o.target = x.target;
+  if (x.data?.trim()) o.data = parseData(x.data);
+  return o;
+}
+// Toggle / on / off act on the button's own device, room or floor, so only buttons that have one offer them.
+const canOwn = b => b.kind === "area" || (["device", "custom", "timer"].includes(b.kind) && !!b.entity);
+const canDim = b => b.kind === "area" || (["device", "custom"].includes(b.kind) && domainOf(b.entity) === "light");
+
+// Only matters when Sleep Mode shows another page (a clock): then a press normally just wakes the panel.
+function asleepOption(b) {
+  const sl = P().sleep;
+  if (b.kind === "info" || !sl || !(sl.idle || sl.night) || !sl.page || sl.page === S.view.page) return "";
+  return `<div class="field"><label><input type="checkbox" id="k-asleep"${b.asleep ? " checked" : ""}> Works while the panel sleeps: runs on the first press, even when the ${esc(sl.page)} page is showing</label></div>`;
+}
+
+function buttonTo(b, key) {
+  const managed = ["key", "entity", "lights", "tap", "hold", "double", "text", "text_position", "icon", "background", "icon_color", "when", "confirm", "asleep", "countdown"];
+  const o = { key };
+  if (b.entity && !["page", "back", "area"].includes(b.kind)) o.entity = b.entity;
+  const explicit = b.tap !== "toggle" || b.raw.tap === "toggle";
+  if (b.kind === "area") { o.lights = { [b.scope]: b.target }; if (explicit) o.tap = b.tap; }
+  if (b.kind === "device" && explicit) o.tap = b.tap;
+  if (b.kind === "script") o.tap = { action: domainOf(b.entity) === "scene" ? "scene.turn_on" : "script.turn_on" };
+  if (b.kind === "info") o.tap = "none";
+  if (b.kind === "page") o.tap = { go_to: b.page };
+  if (b.kind === "back") o.tap = "back";
+  if (b.kind === "custom") { o.tap = { action: b.action || "" }; if (b.target) o.tap.target = b.target; if (b.data?.trim()) o.tap.data = parseData(b.data); }
+  if (b.label) o.text = b.entity ? b.label.replace(/\{\{\s*state\s*\}\}/g, `{{ states('${b.entity}') }}`) : b.label;
+  if (b.label && b.labelPos !== "bottom") o.text_position = b.labelPos;
+  for (const w of ["hold", "double"]) if (b.extra?.[w]?.on) o[w] = extraTo(b.extra[w]);
+  if (b.confirm) o.confirm = true;
+  if (b.asleep) o.asleep = true;
+  if (b.kind === "timer" && b.countdown === false) o.countdown = false;
+  const st = b.kind === "area" ? ["any_on", "all_off"] : (b.kind !== "info" && b.kind !== "custom" && DOMAINS[domainOf(b.entity)]?.states);
+  if (st && b.looks) {
+    const extra = omit(b.raw.when, st);   // looks for other states, e.g. a cover's "opening"
+    o.when = { [st[0]]: lookTo(b.looks.on), [st[1]]: lookTo(b.looks.off), ...extra };
+    if (b.looks.paused) o.when.paused = lookTo(b.looks.paused);
+  } else Object.assign(o, lookTo(b.look));
+  return { ...o, ...omit(b.raw, managed) };   // settings the page doesn't edit (style:) keep their values
+}
+
+// A dial: what it turns, its name and look on the strip, and what pushing it (or tapping the strip) does.
+function dialFrom(raw) {
+  const pr = raw.press, d = { raw: clone(raw), entity: raw.entity || "", label: raw.text ?? "", icon: raw.icon || null, color: raw.color || null, step: raw.step ?? null, press: "auto" };
+  if (pr && typeof pr === "object" && pr.go_to) Object.assign(d, { press: "page", page: pr.go_to });
+  else if (["toggle", "none", "back"].includes(pr)) d.press = pr;
+  else if (pr !== undefined) d.press = "custom";   // turn_on, turn_off or an action: kept as written
+  return d;
+}
+
+function dialTo(d, n) {
+  const o = { dial: n };
+  if (d.entity) o.entity = d.entity;
+  if (d.label) o.text = d.label;
+  if (d.icon) o.icon = d.icon;
+  if (d.color) o.color = d.color;
+  if (d.step) o.step = d.step;
+  if (["toggle", "none", "back"].includes(d.press)) o.press = d.press;
+  if (d.press === "page" && d.page) o.press = { go_to: d.page };
+  if (d.press === "custom") o.press = d.raw.press;
+  return { ...o, ...omit(d.raw, ["dial", "entity", "text", "icon", "color", "step", "press"]) };
+}
+
+function panelFrom(name, raw) {
+  const br = raw.brightness ?? 70, sl = raw.sleep;
+  const p = {
+    raw: clone(raw), id: raw.id, size: raw.size || "mini", start: raw.start_page || "home",
+    brightness: typeof br === "number" ? br : (br.default ?? 70),
+    bmode: typeof br === "number" ? "fixed" : br.follow ? "follow" : (br.schedule || []).length ? "schedule" : "fixed",
+    schedule: typeof br === "object" ? clone(br.schedule || []) : [], follow: typeof br === "object" ? br.follow || "" : "",
+    sleep: { idle: sl?.after_minutes != null, after: sl?.after_minutes ?? 10, night: !!sl?.between, from: sl?.between?.[0] ?? "22:00", to: sl?.between?.[1] ?? "07:00", page: sl?.page || "", level: sl?.brightness ?? 5, awake: sl?.awake_seconds ?? 60 },
+    pages: {},
+  };
+  for (const [pn, pg] of Object.entries(raw.pages || {})) {
+    const page = { raw: clone(pg), buttons: {}, dials: {}, tapAny: pg.tap_any === "back" ? "back" : null, brightness: pg.brightness ?? null, image: null };
+    if (pg.image?.type === "clock") page.image = { type: "clock", style: pg.image.style === "across" ? "span" : "digits", font: pg.image.font || "montserrat", hours: pg.image.hours === 12 ? 12 : 24, raw: clone(pg.image) };
+    if (pg.image?.type === "picture") page.image = { type: "picture", file: pg.image.file, raw: clone(pg.image) };
+    if (pg.image?.type === "camera") page.image = { type: "camera", raw: clone(pg.image) };
+    for (const b of pg.buttons || []) page.buttons[b.key] = buttonFrom(b);
+    for (const d of pg.dials || []) page.dials[d.dial] = dialFrom(d);
+    p.pages[pn] = page;
+  }
+  if (!Object.keys(p.pages).length) p.pages.home = { raw: {}, buttons: {}, tapAny: null, brightness: null, image: null };
+  return p;
+}
+
+function panelTo(p) {
+  const o = { ...omit(p.raw, ["id", "size", "brightness", "sleep", "start_page", "pages"]), id: p.id, size: p.size };
+  if (p.bmode === "schedule" && p.schedule.length) o.brightness = { default: p.brightness, schedule: p.schedule.map(s => ({ at: s.at, level: s.level })) };
+  else if (p.bmode === "follow" && p.follow) o.brightness = p.raw.brightness?.default != null || p.brightness !== 70 ? { default: p.brightness, follow: p.follow } : { follow: p.follow };
+  else o.brightness = p.brightness;
+  if (p.sleep.idle || p.sleep.night) {
+    o.sleep = {};
+    if (p.sleep.idle) o.sleep.after_minutes = p.sleep.after;
+    if (p.sleep.night) o.sleep.between = [p.sleep.from, p.sleep.to];
+    if (p.sleep.night && p.sleep.awake !== 60) o.sleep.awake_seconds = p.sleep.awake;
+    if (p.sleep.page) o.sleep.page = p.sleep.page;
+    o.sleep.brightness = p.sleep.level;
+  }
+  if (p.start !== "home" || p.raw.start_page) o.start_page = p.start;
+  o.pages = {};
+  for (const [pn, pg] of Object.entries(p.pages)) {
+    const q = omit(pg.raw, ["buttons", "dials", "image", "tap_any", "brightness"]);
+    if (pg.image?.type === "clock") { q.image = { ...omit(pg.image.raw, ["type", "style", "font", "hours"]), type: "clock", style: pg.image.style === "span" ? "across" : "digit_per_key", font: pg.image.font || "montserrat" }; if (pg.image.hours === 12 || pg.image.raw?.hours) q.image.hours = pg.image.hours; }
+    if (pg.image?.type === "picture") q.image = { ...omit(pg.image.raw, ["type", "file"]), type: "picture", file: pg.image.file };
+    if (pg.image?.type === "camera") q.image = pg.image.raw;
+    if (pg.tapAny) q.tap_any = pg.tapAny;
+    if (pg.brightness != null) q.brightness = pg.brightness;
+    const keys = Object.keys(pg.buttons).map(Number).sort((a, b) => a - b);
+    if (keys.length) q.buttons = keys.map(k => buttonTo(pg.buttons[k], k));
+    const dials = Object.keys(DIALS(pg)).map(Number).sort((a, b) => a - b);
+    if (dials.length) q.dials = dials.map(n => dialTo(pg.dials[n], n));
+    o.pages[pn] = q;
+  }
+  return o;
+}
+
+const toConfig = () => ({ panels: Object.fromEntries(Object.entries(S.panels).map(([n, p]) => [n, panelTo(p)])), ...omit(S.rawTop, ["panels"]) });
+
+// Extra data for "Any HA action" is typed as simple YAML lines ("temperature: 21").
+function parseData(text) {
+  const o = {};
+  for (const line of text.split("\n")) {
+    const m = /^\s*([\w.]+)\s*:\s*(.*?)\s*$/.exec(line); if (!m) continue;
+    const v = m[2]; o[m[1]] = v === "" ? null : /^-?\d+(\.\d+)?$/.test(v) ? +v : v === "true" ? true : v === "false" ? false : v.replace(/^["']|["']$/g, "");
+  }
+  return o;
+}
+const jsyaml = o => Object.entries(o || {}).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join("\n");
+
+// ---------- Drawing ----------
+const PX = 144;
+const activeState = b => b.kind === "area" ? null : (DOMAINS[domainOf(b.entity)] || { states: ["on"] }).states[0];
+function lookOf(b) {
+  let l;
+  if (b.kind === "area" && b.looks) l = anyOn(b) ? b.looks.on : b.looks.off;
+  else if (b.kind === "area") l = b.look;
+  else if (b.kind === "timer" && b.looks && S.entities[b.entity] === "paused") l = b.looks.paused || b.looks.on;
+  else if (b.looks && twoState(b.entity) && b.kind !== "info" && b.kind !== "custom") l = S.entities[b.entity] === activeState(b) ? b.looks.on : b.looks.off;
+  else l = b.look;
+  return l || { icon: null, bg: null, fg: null };
+}
+const fill = (label, e) => (label || "").replace(/\{\{\s*state\s*\}\}/g, e ? (S.entities[e] ?? "?") : "").replace(/\{\{[^}]*\}\}/g, "…");
+function drawButton(g, b, look, over, sample) {
+  const bg = look.bg || "black";
+  if (!(over && bg === "black")) { g.fillStyle = hex(bg); g.fillRect(0, 0, PX, PX); }
+  else { g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(0, 0, PX, PX); }
+  const ink = hex(look.fg || (lightBg(bg) ? "dark" : "white"));
+  const text = lightBg(bg) ? hex("dark") : hex("white");
+  const label = fill(b.label, b.entity), pos = label ? (b.labelPos || "bottom") : "none";
+  const pad = PX * .06, textH = pos !== "none" ? PX * .24 : 0;
+  let top = pad, bottom = PX - pad;
+  if (pos !== "none") {
+    g.fillStyle = text; g.textAlign = "center";
+    let size = Math.round(PX * .2); const font = s => `600 ${s}px "IBM Plex Sans", system-ui, sans-serif`;
+    g.font = font(size); while (g.measureText(label).width > PX - 2 * pad && size > 9) g.font = font(--size);
+    if (!look.icon) { size = Math.round(PX * .32); g.font = font(size); while (g.measureText(label).width > PX - 2 * pad && size > 9) g.font = font(--size); g.textBaseline = "middle"; g.fillText(label, PX / 2, PX / 2); }
+    else if (pos === "top") { g.textBaseline = "top"; g.fillText(label, PX / 2, pad); top += textH; }
+    else { g.textBaseline = "bottom"; g.fillText(label, PX / 2, PX - pad); bottom -= textH; }
+  }
+  // A timer key's time left: live on the panel preview, a sample on the running and paused look cards.
+  const timing = b.kind !== "timer" || b.countdown === false ? null : sample !== undefined ? sample
+    : ["active", "paused"].includes(S.entities[b.entity]) && S.dialInfo[b.entity];
+  if (timing) {   // the time left, as the panel shows it (the panel itself redraws every second)
+    const t = timing.text; let size = Math.round(Math.min(PX * .36, bottom - top)); const font = s => `600 ${s}px "IBM Plex Sans", system-ui, sans-serif`;
+    g.font = font(size); while (g.measureText(t).width > PX - 2 * pad && size > 9) g.font = font(--size);
+    g.fillStyle = ink; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(t, PX / 2, (top + bottom) / 2);
+    if (timing.level != null) {
+      const y = PX / 40, h = Math.max(4, PX / 24), w = PX - 2 * pad;
+      g.fillStyle = hex("dark"); g.fillRect(pad, y, w, h); g.fillStyle = ink; g.fillRect(pad, y, w * timing.level / 100, h);
+    }
+  } else if (look.icon && glyph(look.icon)) {
+    const s = Math.min(bottom - top, PX - 2 * pad);
+    g.fillStyle = ink; g.textAlign = "center"; g.textBaseline = "middle"; g.font = `${s}px MDI`;
+    g.fillText(glyph(look.icon), PX / 2, (top + bottom) / 2);
+  }
+  if (b.extra?.hold?.on || b.extra?.double?.on) drawMarks(g, b, text, pos !== "top" || !label);
+  if (b.confirmShow) { g.strokeStyle = "#fff"; g.lineWidth = 8; g.strokeRect(4, 4, PX - 8, PX - 8); }
+}
+// The same corner marks as the panels: a dash for a long press, two dots for a double press.
+function drawMarks(g, b, ink, top) {
+  const dot = Math.max(4, Math.round(PX * .06)), gap = dot * .6, margin = Math.round(PX * .05), y = top ? margin : PX - margin - dot;
+  let x = PX - margin; g.fillStyle = ink;
+  if (b.extra.double.on) { for (let i = 0; i < 2; i++) { g.beginPath(); g.arc(x - dot / 2, y + dot / 2, dot / 2, 0, 2 * Math.PI); g.fill(); x -= dot + gap; } x -= gap; }
+  if (b.extra.hold.on) { g.beginPath(); g.roundRect(x - dot * 2.6, y, dot * 2.6, dot, dot / 2); g.fill(); }
+}
+
+// Clock, one character per key: digits fill the whole key height.
+// The time as the panels show it: on a 12-hour clock, a space instead of a leading zero, and AM/PM.
+function clockTime(now, hours) {
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  if (hours === 12) return [String(now.getHours() % 12 || 12).padStart(2, " "), mm, now.getHours() < 12 ? "AM" : "PM"];
+  return [String(now.getHours()).padStart(2, "0"), mm, ""];
+}
+function clockCells(cols, rows, now, hours) {
+  const [hh, mm, ampm] = clockTime(now, hours);
+  const day = now.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  const date = now.toLocaleDateString("en-US", { day: "numeric" }) + " " + now.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  const cells = {}, at = (c, r, v) => cells[r * cols + c + 1] = v;
+  if (cols >= 5) {
+    const r = Math.floor((rows - 1) / 2), c0 = Math.floor((cols - 5) / 2);
+    [hh[0], hh[1], ":", mm[0], mm[1]].forEach((ch, i) => { if (ch !== " ") at(c0 + i, r, { big: ch }); });
+    if (r + 1 < rows) { at(c0 + 1, r + 1, { small: day }); if (ampm) at(c0 + 2, r + 1, { small: ampm }); at(c0 + 3, r + 1, { small: date }); }
+    else if (ampm && c0 + 5 < cols) at(c0 + 5, r, { small: ampm });
+  } else {
+    if (hh[0] !== " ") at(0, 0, { big: hh[0] }); at(1, 0, { big: hh[1] }); at(0, 1, { big: mm[0] }); at(1, 1, { big: mm[1] });
+    if (cols > 2) { at(2, 0, { small: ampm ? `${day}\n${ampm}` : day }); at(2, 1, { small: date }); }
+  }
+  return cells;
+}
+const CLOCK_FONTS = {
+  montserrat: { label: "Montserrat (wide, bold)", css: '800 200px "Montserrat", sans-serif' },
+  archivo: { label: "Archivo Black (wide, heavy)", css: '200px "Archivo Black", sans-serif' },
+  roboto: { label: "Roboto Condensed (medium)", css: '700 200px "Roboto Condensed", sans-serif' },
+  oswald: { label: "Oswald (tall)", css: '600 200px "Oswald", sans-serif' },
+  bebas: { label: "Bebas Neue (tallest, narrow)", css: '200px "Bebas Neue", Impact, sans-serif' },
+};
+let clockFont = "montserrat";
+const metricCache = {};
+function digitMetrics(g, font) {
+  const key = font + (document.fonts?.check(CLOCK_FONTS[font].css) ? "+" : "-");
+  if (metricCache[key]) return metricCache[key];
+  g.save(); g.font = CLOCK_FONTS[font].css;
+  let maxW = 0, top = 0, bottom = 0;
+  for (const d of "0123456789") { const m = g.measureText(d); maxW = Math.max(maxW, m.actualBoundingBoxLeft + m.actualBoundingBoxRight); top = Math.max(top, m.actualBoundingBoxAscent); bottom = Math.max(bottom, m.actualBoundingBoxDescent); }
+  g.restore(); return metricCache[key] = { maxW, top, h: top + bottom };
+}
+function drawDigit(g, ch, cx, y, k, font) {
+  const met = digitMetrics(g, font);
+  g.save(); g.font = CLOCK_FONTS[font].css; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const m = g.measureText(ch), w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+  g.translate(cx - w * k / 2, y); g.scale(k, k); g.fillText(ch, m.actualBoundingBoxLeft, met.top); g.restore();
+  return w * k;
+}
+function inkWidth(g, ch, font) { g.save(); g.font = CLOCK_FONTS[font].css; const m = g.measureText(ch); g.restore(); return m.actualBoundingBoxLeft + m.actualBoundingBoxRight; }
+function drawColon(g, cx, cy, digitH) { const d = Math.max(4, digitH * .11); g.fillRect(cx - d / 2, cy - digitH * .2 - d / 2, d, d); g.fillRect(cx - d / 2, cy + digitH * .2 - d / 2, d, d); }
+function drawCell(g, cell) {
+  g.fillStyle = "#0b0c0e"; g.fillRect(0, 0, PX, PX);
+  if (!cell) return;
+  const M = PX * .05, met = digitMetrics(g, clockFont);
+  const k = Math.min((PX - 2 * M) / met.maxW, (PX - 2 * M) / met.h), dh = met.h * k;
+  g.fillStyle = "#f2a516";
+  if (cell.big === ":") drawColon(g, PX / 2, PX / 2, dh);
+  else if (cell.big) drawDigit(g, cell.big, PX / 2, (PX - dh) / 2, k, clockFont);
+  else {
+    g.fillStyle = "#c9cdd3"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = `600 ${PX * .26}px "IBM Plex Sans", sans-serif`;
+    const lines = cell.small.split("\n"), lh = PX * .32;
+    lines.forEach((l, i) => g.fillText(l, PX / 2, PX / 2 + (i - (lines.length - 1) / 2) * lh));
+  }
+}
+let sampleImg = null;
+function samplePicture(w, h) {
+  if (sampleImg && sampleImg.width === w && sampleImg.height === h) return sampleImg;
+  const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d");
+  const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, "#2b2f6b"); sky.addColorStop(.55, "#e0705a"); sky.addColorStop(1, "#f6c26b");
+  g.fillStyle = sky; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#fde7a6"; g.beginPath(); g.arc(w * .62, h * .62, h * .16, 0, 7); g.fill();
+  g.fillStyle = "#3d2a4e"; g.beginPath(); g.moveTo(0, h);
+  for (let x = 0; x <= w; x += w / 40) g.lineTo(x, h * .72 + Math.sin(x / w * 9) * h * .07 + Math.sin(x / w * 23) * h * .03);
+  g.lineTo(w, h); g.fill();
+  return sampleImg = c;
+}
+const uploads = {};
+const STEP = PX * 1.22;
+function backgroundFor(page, cols, rows) {
+  const im = page.image; if (!im || (im.type === "clock" && im.style === "digits")) return null;
+  const W = Math.round(cols * STEP - .22 * PX), H = Math.round(rows * STEP - .22 * PX);
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+  if (im.type === "clock") {
+    g.fillStyle = "#0b0c0e"; g.fillRect(0, 0, W, H);
+    const [hh, mm, ampm] = clockTime(new Date(), im.hours), t = `${hh.trim()}:${mm}`, M = PX * .04, met = digitMetrics(g, clockFont);
+    const gap = met.h * .06, colonW = met.h * .11 + 2 * gap;
+    const widths = [...t].map(ch => ch === ":" ? colonW : inkWidth(g, ch, clockFont));
+    const natural = widths.reduce((a, b) => a + b, 0) + gap * (t.length - 1);
+    const k = Math.min((W - 2 * M) / natural, (H - 2 * M) / met.h), dh = met.h * k, y = (H - dh) / 2;
+    let x = (W - natural * k) / 2; g.fillStyle = "#f2a516";
+    [...t].forEach((ch, i) => { const w = widths[i] * k; if (ch === ":") drawColon(g, x + w / 2, H / 2, dh); else drawDigit(g, ch, x + w / 2, y, k, clockFont); x += w + gap * k; });
+    if (ampm) { g.fillStyle = "#c9cdd3"; g.font = `600 ${Math.round(H * .09)}px "IBM Plex Sans", sans-serif`; g.textAlign = "right"; g.textBaseline = "top"; g.fillText(ampm, x - gap * k, y + dh + H * .02); }
+  } else {
+    if (im.file && !uploads[im.file] && !uploads[im.file + "#loading"]) {
+      uploads[im.file + "#loading"] = true; const img = new Image();
+      img.onload = () => { uploads[im.file] = img; drawAllKeys(); }; img.src = "api/picture?file=" + encodeURIComponent(im.file);
+    }
+    const src = uploads[im.file] || samplePicture(W, H);
+    const r = Math.max(W / src.width, H / src.height), w = src.width * r, h = src.height * r;
+    g.drawImage(src, (W - w) / 2, (H - h) / 2, w, h);
+  }
+  return c;
+}
+
+function drawAllKeys() {
+  const p = P(), page = PAGE(); if (!p || !page) return;
+  const { cols, rows } = dims(p), edit = S.view.mode === "edit";
+  const bg = backgroundFor(page, cols, rows);
+  clockFont = page.image?.font || "montserrat";
+  const cells = page.image?.type === "clock" && page.image.style === "digits" ? clockCells(cols, rows, new Date(), page.image.hours) : null;
+  document.querySelectorAll("#decks canvas.key").forEach(cv => {
+    const n = +cv.dataset.key, c = (n - 1) % cols, r = Math.floor((n - 1) / cols), g = cv.getContext("2d");
+    g.clearRect(0, 0, PX, PX);
+    const b = page.buttons[n];
+    if (cells) drawCell(g, cells[n]);
+    else if (bg) g.drawImage(bg, c * STEP, r * STEP, PX, PX, 0, 0, PX, PX);
+    else { g.fillStyle = "#000"; g.fillRect(0, 0, PX, PX); }
+    if (b) drawButton(g, b, lookOf(b), !!(bg || cells));
+    else if (edit && !bg && !cells) { g.fillStyle = "#4a5059"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = `${PX * .3}px MDI`; g.fillText(glyph("mdi:plus"), PX / 2, PX / 2); }
+  });
+  drawAllDials();
+  document.querySelectorAll(".look canvas[data-look]").forEach(cv => {
+    const b = page.buttons[S.view.sel]; if (!b) return; const g = cv.getContext("2d");
+    g.fillStyle = "#000"; g.fillRect(0, 0, PX, PX);
+    const w = cv.dataset.look; drawButton(g, b, w === "one" ? b.look : b.looks[w], false, ["on", "paused"].includes(w) ? { text: w === "on" ? "24:13" : "10:05", level: w === "on" ? 97 : 40 } : null);
+  });
+}
+
+// One dial's part of the strip, like the panel's renderer/draw.py render_dial().
+const DW = 400, DH = 200;
+function dialLook(d) {
+  const dom = domainOf(d.entity), [icon, color] = DIAL_DEFAULTS[dom] || [null, "amber"], info = S.dialInfo[d.entity];
+  const known = S.entities[d.entity] !== undefined;
+  return { icon: d.icon || icon, color: d.color || color, name: d.label ? fill(d.label, d.entity) : (S.names[d.entity] || d.entity),
+    value: info ? info.text : known ? S.entities[d.entity] : d.entity ? "?" : "", level: info ? info.level : null, on: info ? info.on : known };
+}
+function drawDial(g, d, edit) {
+  g.fillStyle = d ? "#0b0c0e" : "#000"; g.fillRect(0, 0, DW, DH);
+  if (!d) { if (edit) { g.fillStyle = "#4a5059"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = `${DH * .3}px MDI`; g.fillText(glyph("mdi:plus"), DW / 2, DH / 2); } return; }
+  const l = dialLook(d), pad = DH * .1, dim = "#6b7079", accent = l.on ? hex(l.color) : dim;
+  const bar = l.level != null ? DH * .09 : 0, bottom = DH - pad - (bar ? bar + pad / 2 : 0);
+  let left = pad;
+  if (l.icon && glyph(l.icon)) {
+    const size = bottom - pad; g.fillStyle = accent; g.textAlign = "center"; g.textBaseline = "middle"; g.font = `${size}px MDI`;
+    g.fillText(glyph(l.icon), pad + size / 2, (pad + bottom) / 2); left = pad * 2 + size;
+  }
+  const room = DW - left - pad, font = s => `500 ${s}px "IBM Plex Sans", system-ui, sans-serif`;
+  const fit = (text, largest) => { let s = largest; g.font = font(s); while (g.measureText(text).width > room && s > 9) g.font = font(--s); };
+  g.textAlign = "left";
+  if (l.name) { fit(l.name, Math.round(DH * .22)); g.fillStyle = l.on ? "#c9cdd3" : dim; g.textBaseline = "top"; g.fillText(l.name, left, pad); }
+  if (l.value) { fit(l.value, Math.round(DH * .38)); g.fillStyle = l.on ? "#fff" : dim; g.textBaseline = "alphabetic"; g.fillText(l.value, left, bottom); }
+  if (bar) {
+    const top = DH - pad - bar, w = DW - 2 * pad, r = bar / 2;
+    const pill = (x, width) => { g.beginPath(); g.roundRect(x, top, width, bar, r); g.fill(); };
+    g.fillStyle = "#2a2d33"; pill(pad, w);
+    if (l.level > 0) { g.fillStyle = accent; pill(pad, Math.max(bar, w * l.level / 100)); }
+  }
+}
+function drawAllDials() {
+  const page = PAGE(); if (!page) return;
+  document.querySelectorAll("#decks canvas.dialseg").forEach(cv => drawDial(cv.getContext("2d"), DIALS(page)[+cv.dataset.dial], S.view.mode === "edit"));
+}
+
+// ---------- Rendering ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const slug = s => s.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+
+function renderSidebar() {
+  const found = S.bridges.filter(f => !Object.values(S.panels).some(p => p.id === f.id));
+  const status = id => { const f = S.bridges.find(x => x.id === id); return !f ? "not found on the network" : !f.connected ? "not connected" : !f.deck ? "no deck plugged in" : "online"; };
+  $("sidebar").innerHTML = `<h2>Panels</h2><ul class="targets">${Object.entries(S.panels).map(([n, p]) =>
+    `<li><button data-panel="${esc(n)}" aria-current="${S.view.panel === n}"><span class="name">${esc(n)}</span><span class="meta">${esc(dims(p).label)}</span><span class="meta">${status(p.id)}</span></button></li>`).join("")}</ul>
+    ${Object.keys(S.panels).length ? "" : `<p class="hint" style="padding:0 14px 12px;text-align:left">No panels yet. Plug in a bridge and it appears here.</p>`}
+    ${found.map((f, i) => `<div class="newpanel"><strong>New panel found</strong>
+      <span class="meta">It's showing <code>${esc(f.id)}</code> on its keys${f.deck ? ` (${esc(f.deck.model)})` : ""}.</span>
+      <input type="text" id="newname-${i}" placeholder="Name, e.g. office" aria-label="Name for the new panel">
+      <select id="newsize-${i}" aria-label="Size of the new panel">${Object.entries(SIZES).map(([k, s]) => `<option value="${k}"${(f.size || "mini") === k ? " selected" : ""}>${s.label}</option>`).join("")}</select>
+      <button class="btn small primary" data-adopt="${esc(f.id)}" data-index="${i}">Add panel</button></div>`).join("")}`;
+}
+
+const SUN = () => ({ sunrise: hm(S.sun.sunrise), sunset: hm(S.sun.sunset) });
+const hm = iso => { if (!iso) return null; const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const toMin = t => { const v = SUN()[t] || t; const m = /^(\d{1,2}):(\d{2})$/.exec(v || ""); return m ? +m[1] * 60 + +m[2] : null; };
+function scheduleLevel(p, now = new Date()) {
+  const steps = p.schedule.filter(st => toMin(st.at) !== null).sort((a, b) => toMin(a.at) - toMin(b.at));
+  if (!steps.length) return { level: p.brightness, why: "fixed" };
+  const n = now.getHours() * 60 + now.getMinutes();
+  const cur = [...steps].reverse().find(st => toMin(st.at) <= n) || steps[steps.length - 1];
+  return { level: cur.level, why: `schedule, since ${cur.at}` };
+}
+const sleepOn = p => p.sleep.idle || p.sleep.night;
+function brightnessNow() {
+  const p = P(), page = PAGE();
+  if (S.view.asleep) return { level: p.sleep.level, why: "asleep" };
+  if (page.brightness != null) return { level: page.brightness, why: "this page's own setting" };
+  if (p.bmode === "follow") { const v = +S.entities[p.follow]; return { level: isNaN(v) ? p.brightness : v, why: `from ${p.follow || "an HA slider"}` }; }
+  if (p.bmode === "schedule") return scheduleLevel(p);
+  return { level: p.brightness, why: "fixed" };
+}
+const keysFilter = level => `brightness(${(.18 + .82 * level / 100).toFixed(2)})`;
+function applyBrightness() {
+  if (!P()) return;
+  const b = brightnessNow(), keys = document.querySelector("#decks .keys");
+  if (keys) keys.style.filter = keysFilter(b.level);
+  const strip = document.querySelector("#decks .strip"); if (strip) strip.style.filter = keysFilter(b.level);
+  const el = $("bright-now"); if (el) el.textContent = `Brightness: ${b.level}% (${b.why})`;
+}
+function renderHead() {
+  const p = P();
+  $("stagehead").innerHTML = p ? `<h2>${esc(S.view.panel)}</h2><span class="meta">${esc(dims(p).label)} · <span class="mono">${esc(p.id)}</span> · <span id="bright-now"></span></span>` : "";
+}
+
+function renderTabs() {
+  const p = P(); if (!p) { $("tabs").innerHTML = ""; return; }
+  const names = Object.keys(p.pages), v = S.view;
+  $("tabs").innerHTML = names.map(n => v.confirmPage === n
+    ? `<span class="tab confirm">Delete “${esc(n)}”? <button data-delpage-yes="${esc(n)}">Delete</button><button data-delpage-no>Keep</button></span>`
+    : `<span class="tab" aria-selected="${v.page === n}"><button class="tabname" data-page="${esc(n)}">${esc(n)}${n === p.start ? '<span class="start">start</span>' : ""}</button>${
+        v.mode === "edit" && names.length > 1 ? `<button class="x" data-delpage="${esc(n)}" title="Delete page ${esc(n)}" aria-label="Delete page ${esc(n)}">×</button>` : ""}</span>`).join("")
+    + (v.mode === "edit" ? `<button class="addpage" data-newpage>+ Add page</button>` : "");
+}
+
+function renderStage() {
+  const p = P(), v = S.view;
+  if (!p) { $("decks").innerHTML = ""; $("hint").textContent = "Add a panel from the list on the left to start."; return; }
+  const { cols, rows, dials = 0 } = dims(p);
+  const avail = Math.min($("stage").clientWidth || 700, 760) - 40;
+  const key = Math.max(44, Math.min(88, Math.floor(avail / (cols * 1.22 + .14))));
+  $("decks").style.setProperty("--key", key + "px");
+  const filter = keysFilter(brightnessNow().level), edit = v.mode === "edit";
+  const width = `calc(var(--key) * ${cols + (cols - 1) * .22})`;
+  const strip = dials ? `<div class="strip" style="grid-template-columns:repeat(${dials}, 1fr); width:${width}; filter:${filter}">${Array.from({ length: dials }, (_, i) =>
+      `<canvas class="dialseg${v.dial === i + 1 && edit ? " sel" : ""}" width="${DW}" height="${DH}" tabindex="0" draggable="${edit}" data-dial="${i + 1}" aria-label="Dial ${i + 1} on the touch strip"></canvas>`).join("")}</div>
+    <div class="knobs" style="grid-template-columns:repeat(${dials}, 1fr); width:${width}">${Array.from({ length: dials }, (_, i) => edit
+      ? `<button class="knob${v.dial === i + 1 ? " sel" : ""}" draggable="true" data-dial="${i + 1}" aria-label="Dial ${i + 1}"></button>`
+      : `<span class="turn"><button class="step" data-turn="${i + 1}" data-by="-1" aria-label="Turn dial ${i + 1} left">−</button><button class="knob" data-dial="${i + 1}" aria-label="Push dial ${i + 1}"></button><button class="step" data-turn="${i + 1}" data-by="1" aria-label="Turn dial ${i + 1} right">+</button></span>`).join("")}</div>` : "";
+  $("decks").innerHTML = `<div class="deck"><div class="keys" style="grid-template-columns:repeat(${cols}, var(--key)); filter:${filter}">${
+    Array.from({ length: cols * rows }, (_, i) => `<canvas class="key${v.sel === i + 1 && edit ? " sel" : ""}" width="${PX}" height="${PX}" tabindex="0" draggable="${edit}" data-key="${i + 1}" aria-label="Key ${i + 1}"></canvas>`).join("")}</div>${strip}</div>`;
+  const hidden = Object.keys(PAGE().buttons).filter(k => +k > cols * rows).length + Object.keys(DIALS(PAGE())).filter(n => +n > dials).length;
+  $("hint").textContent = edit
+    ? `Click a key to set it up, or drag a key onto another to swap them.${dials ? " Click a dial, or the strip above it, to choose what it turns. Drag a dial onto another to swap them." : ""}${hidden ? ` ${hidden} button(s) or dial(s) on this page don't fit this panel size and are hidden.` : ""}`
+    : `Tap keys as if this were the real panel.${dials ? " Use − and + to turn a dial, and click it or the strip to push it." : ""} This controls your real devices.`;
+  drawAllKeys(); applyBrightness();
+}
+
+// ----- Inspector -----
+function swatches(which, field, cur) {
+  const auto = field === "fg" ? `<button data-sw="${which}" data-field="${field}" data-color="" style="background:linear-gradient(135deg,#fff 50%,#1c1c1e 50%)" aria-pressed="${!cur}" title="automatic" aria-label="automatic"></button>` : "";
+  return `<div class="swatches">${auto}${Object.entries(COLORS).map(([k, c]) =>
+    `<button data-sw="${which}" data-field="${field}" data-color="${k}" style="background:${c}" aria-pressed="${(cur || (field === "bg" ? "black" : "")) === k}" title="${k}" aria-label="${k}"></button>`).join("")}</div>`;
+}
+function iconPicker(which, look) {
+  return `<input type="text" id="icon-search" value="${esc(S.view.iconSearch)}" placeholder="Search 7,000 icons, e.g. lamp" aria-label="Search icons" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);width:100%">
+    ${iconGrid(which, look)}`;
+}
+function iconGrid(which, look) {
+  const q = S.view.iconSearch.trim().toLowerCase().replace(/^mdi:/, "");
+  const names = q ? Object.keys(CODEPOINTS).filter(n => n.includes(q)).sort((a, b) => (a.startsWith(q) ? 0 : 1) - (b.startsWith(q) ? 0 : 1) || a.length - b.length).slice(0, 48) : COMMON_ICONS.filter(n => CODEPOINTS[n]);
+  return `<div class="icons" id="icon-grid">${names.map(n => `<button data-icon="mdi:${n}" data-which="${which}" aria-pressed="${look.icon === "mdi:" + n}" title="${n}" aria-label="${n}">${svgIcon("mdi:" + n)}</button>`).join("")}
+    ${look.icon ? `<button data-icon="" data-which="${which}" title="No icon" aria-label="No icon" style="font-size:11px">none</button>` : ""}</div>`;
+}
+function lookCard(which, title, look) {
+  const open = S.view.iconFor === which;
+  return `<div class="look"><div class="lt"><canvas data-look="${which}" width="${PX}" height="${PX}" aria-hidden="true"></canvas>
+      <div><strong>${title}</strong></div></div>
+    <div class="swrow"><span class="lab">Icon</span><button class="iconbtn" data-iconfor="${which}">${look.icon ? svgIcon(look.icon) : ""}${open ? "Close" : "Change"}</button></div>
+    ${open ? iconPicker(which, look) : ""}
+    <div class="swrow"><span class="lab">Background</span>${swatches(which, "bg", look.bg)}</div>
+    <div class="swrow"><span class="lab">Icon colour</span>${swatches(which, "fg", look.fg)}</div></div>`;
+}
+function entityField(b, domains, note) {
+  const list = Object.keys(S.entities).filter(e => !domains || domains.includes(domainOf(e))).sort();
+  const known = S.entities[b.entity] !== undefined;
+  return `<div class="field"><label for="k-entity">Entity</label>
+    <input type="text" id="k-entity" list="entity-list" value="${esc(b.entity)}" placeholder="Start typing a name or ID" autocomplete="off">
+    <datalist id="entity-list">${list.map(e => `<option value="${e}">${esc(S.names[e] || "")}</option>`).join("")}</datalist>
+    <span class="note${b.entity && !known ? " bad" : ""}" id="k-state">${b.entity ? (known ? `${esc(S.names[b.entity] || b.entity)}: now ${esc(S.entities[b.entity])}` : "Home Assistant has no entity with this ID.") : note}</span></div>`;
+}
+function pageSelect(id, cur) {
+  return `<select id="${id}">${Object.keys(P().pages).filter(n => n !== S.view.page).map(n => `<option value="${esc(n)}"${cur === n ? " selected" : ""}>${esc(n)}</option>`).join("")}<option value="__new">+ New page…</option></select>`;
+}
+
+function keyInspector() {
+  const v = S.view, b = PAGE().buttons[v.sel];
+  if (!b) return `<div class="insp"><div class="empty">Key ${v.sel} is empty.<button class="btn primary small" id="k-add">Add a button here</button></div></div>`;
+  let what = "";
+  if (b.kind === "area") {
+    const opts = b.scope === "floor" ? Object.entries(S.floors) : Object.entries(S.areas).map(([k, a]) => [k, a.name]);
+    const lights = areaLights(b), on = lights.filter(e => S.entities[e] === "on").length;
+    what = `<div class="pair"><div class="field"><label for="k-scope">Control a</label><select id="k-scope"><option value="area"${b.scope === "area" ? " selected" : ""}>Room (HA area)</option><option value="floor"${b.scope === "floor" ? " selected" : ""}>Floor</option></select></div>
+      <div class="field"><label for="k-target">${b.scope === "floor" ? "Floor" : "Room"}</label><select id="k-target">${opts.map(([k, n]) => `<option value="${esc(k)}"${b.target === k ? " selected" : ""}>${esc(n)}</option>`).join("")}${opts.some(([k]) => k === b.target) ? "" : `<option selected value="${esc(b.target)}">${esc(b.target)}</option>`}</select></div></div>
+      <span class="note" style="font-size:12px;color:var(--muted)">Lights in ${esc(placeName(b))}: ${lights.length}, ${on} on now. Rooms and floors come from Home Assistant's Areas and Floors settings.</span>
+      <div class="field"><label for="k-tap">When tapped</label><select id="k-tap">${[["toggle", "If any are on, turn them all off. Otherwise turn them all on"], ["turn_off", "Turn all the lights off"], ["turn_on", "Turn all the lights on"], ["none", "Do nothing (for a key that only works when held or double pressed)"]].map(([k, l]) => `<option value="${k}"${b.tap === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>`;
+  }
+  if (b.kind === "device") what = entityField(b, ["light", "switch", "fan", "cover", "lock", "media_player", "input_boolean", "climate", "humidifier", "vacuum", "button", "valve", "siren"], "Pick the light, switch or other device this key controls.")
+    + `<div class="field"><label for="k-tap">When tapped</label><select id="k-tap">${[["toggle", "Toggle it"], ["turn_on", "Turn it on (or open it)"], ["turn_off", "Turn it off (or close it)"], ["none", "Do nothing (for a key that only works when held or double pressed)"]].map(([k, l]) => `<option value="${k}"${b.tap === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>`;
+  if (b.kind === "script") what = entityField(b, ["script", "scene"], "Pick a script or scene. Tapping the key runs it.");
+  if (b.kind === "timer") what = entityField(b, ["timer"], "Pick a timer. Make one in Home Assistant under Settings › Devices & services › Helpers › Timer.")
+    + `<span class="note" style="font-size:12px;color:var(--muted)">Tapping starts the timer, pauses it while it runs, and resumes it. To cancel with a long press, tick Long press below and pick "Cancel the timer". A dial can set its length.</span>`
+    + `<div class="field"><label><input type="checkbox" id="k-countdown"${b.countdown !== false ? " checked" : ""}> Show the time left while it runs, counting down in place of the icon, with a bar for how much is left</label></div>`;
+  if (b.kind === "info") what = entityField(b, null, "Pick a sensor. Its value shows in the label wherever you type {{ state }}.") + `<span class="note" style="font-size:12px;color:var(--muted)">Tapping this key does nothing.</span>`;
+  if (b.kind === "page") what = `<div class="field"><label for="k-page">Page to open</label>${pageSelect("k-page", b.page)}</div>`;
+  if (b.kind === "back") what = `<p class="note" style="margin:0;font-size:12.5px;color:var(--muted)">Returns to the page you came from.</p>`;
+  if (b.kind === "custom") what = `<div class="field"><label for="k-action">Action</label><input type="text" id="k-action" value="${esc(b.action)}" placeholder="e.g. climate.set_temperature"><span class="note">Any action from Developer Tools › Actions.</span></div>`
+    + entityField(b, null, "Optional: the entity the action applies to.")
+    + `<div class="field"><label for="k-data">Extra data (optional)</label><textarea id="k-data" placeholder="temperature: 21">${esc(b.data)}</textarea></div>`;
+
+  const confirmable = !["page", "back", "info"].includes(b.kind);
+  return `<div class="insp">
+    <div class="sect"><span class="head">What this button does</span>
+      <div class="kinds">${KINDS.map(([k, l, ic]) => `<button data-kind="${k}" aria-pressed="${b.kind === k}">${svgIcon(ic)}<span>${l}</span></button>`).join("")}</div>
+      ${what}
+      ${confirmable ? `<div class="field"><label><input type="checkbox" id="k-confirm"${b.confirm ? " checked" : ""}> Press twice to run (for things like a garage door)</label></div>` : ""}
+      ${asleepOption(b)}</div>
+    ${morePresses(b)}
+    <div class="sect"><span class="head">Label</span>
+      <div class="pair"><div class="field"><label for="k-label">Text</label><input type="text" id="k-label" value="${esc(b.label)}"></div>
+        <div class="field"><label for="k-labelpos">Position</label><select id="k-labelpos">${[["bottom", "Bottom"], ["top", "Top"], ["none", "Hidden"]].map(([k, l]) => `<option value="${k}"${(b.labelPos || "bottom") === k ? " selected" : ""}>${l}</option>`).join("")}</select></div></div>
+      <span class="note" id="k-label-note" style="font-size:12px;color:var(--muted)"${b.entity ? "" : " hidden"}>Type {{ state }} to show the entity's current value.</span></div>
+    ${looksSect(b)}
+    <button class="btn small danger${v.armed === "key" ? " armed" : ""}" id="k-remove">${v.armed === "key" ? "Click again to remove" : "Remove this button"}</button>
+  </div>`;
+}
+
+function morePresses(b) {
+  const own = b.kind === "area"
+    ? [["toggle", "Toggle the lights"], ["turn_on", "Turn all the lights on"], ["turn_off", "Turn all the lights off"]]
+    : b.kind === "timer" ? [["turn_off", "Cancel the timer"], ["turn_on", "Start it again from the beginning"], ["toggle", "Start, pause or resume"]]
+    : [["toggle", "Toggle it"], ["turn_on", "Turn it on (or open it)"], ["turn_off", "Turn it off (or close it)"]];
+  const dims = [["dim_brighten", "Dim or brighten while held (alternates)"], ["brighten", "Brighten while held"], ["dim", "Dim while held"]];
+  const kinds = [...(canOwn(b) ? own : []), ["script", "Run a script or scene"], ["page", "Go to another page"], ["back", "Go back"], ["custom", "Any HA action"]];
+  const fields = w => {
+    const x = b.extra[w], id = `k-${w}`, list = w === "hold" && canDim(b) ? [...dims, ...kinds] : kinds;
+    let f = `<div class="field"><label for="${id}-kind">${EXTRA_NAMES[w]} action</label><select id="${id}-kind">${list.map(([k, l]) => `<option value="${k}"${x.kind === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>`;
+    const ent = (domains, label, note) => `<div class="field"><label for="${id}-entity">${label}</label><input type="text" id="${id}-entity" list="${id}-list" value="${esc(x.entity)}" placeholder="Start typing a name or ID" autocomplete="off">
+      <datalist id="${id}-list">${Object.keys(S.entities).filter(e => !domains || domains.includes(domainOf(e))).sort().map(e => `<option value="${e}">${esc(S.names[e] || "")}</option>`).join("")}</datalist>${note ? `<span class="note">${note}</span>` : ""}</div>`;
+    if (x.kind === "script") f += ent(["script", "scene"], "Script or scene");
+    if (x.kind === "page") f += `<div class="field"><label for="${id}-page">Page to open</label>${pageSelect(`${id}-page`, x.page)}</div>`;
+    if (DIM.includes(x.kind)) f += `<span class="note" style="font-size:12px;color:var(--muted)">Changes the brightness ${DIM_STEP_PCT}% at a time until you let go. ${x.kind === "dim_brighten" ? "Each hold goes the other way from the last one. " : ""}Dimming stops at 1% rather than turning the lights off.${b.kind === "area" ? " Only lights that are on change, unless all are off." : ""}</span>`;
+    if (x.kind === "custom") f += `<div class="field"><label for="${id}-action">Action</label><input type="text" id="${id}-action" value="${esc(x.action)}" placeholder="e.g. light.turn_on"></div>`
+      + ent(null, "Entity (optional)", "")
+      + `<div class="field"><label for="${id}-data">Extra data (optional)</label><textarea id="${id}-data" placeholder="brightness_pct: 20">${esc(x.data)}</textarea></div>`;
+    return `<div style="padding-left:22px;display:flex;flex-direction:column;gap:8px">${f}</div>`;
+  };
+  return `<div class="sect" id="k-more"><span class="head">Long and double press</span>
+    ${["hold", "double"].map(w => `<div class="field"><label><input type="checkbox" id="k-${w}-on"${b.extra[w].on ? " checked" : ""}> ${EXTRA_NAMES[w]}</label></div>${b.extra[w].on ? fields(w) : ""}`).join("")}
+    <span class="note" style="font-size:12px;color:var(--muted)">Long press: hold the key for half a second. Double press: two quick presses. Only keys with a double press wait a moment before a single tap runs.</span></div>`;
+}
+
+// When a button changes kind, its long and double press keep their actions, unless they acted on a device it no longer has.
+function fixExtras(b) {
+  for (const w of ["hold", "double"]) {
+    const x = b.extra[w];
+    if (x.on && ((OWN.includes(x.kind) && !canOwn(b)) || (DIM.includes(x.kind) && !canDim(b)))) x.kind = "script";
+  }
+}
+const DIM_STEP_PCT = 10;
+
+function looksSect(b) {
+  const states = b.kind === "area" ? (b.looks ? ["any light is on", "all lights are off"] : null) : b.looks && twoState(b.entity) && !["info", "custom"].includes(b.kind) ? DOMAINS[domainOf(b.entity)].states : null;
+  return `<div class="sect" id="k-looks"><span class="head">${states ? "Look for each state" : "Look"}</span><div class="looks">
+      ${states ? lookCard("on", `When ${states[0]}`, b.looks.on) + (b.looks.paused ? lookCard("paused", "When paused", b.looks.paused) : "") + lookCard("off", `When ${states[1]}`, b.looks.off) : lookCard("one", "Icon and colours", b.look)}</div>
+      ${states ? `<button class="btn small" id="k-onelook">Use one look for every state</button>` : (b.kind === "area" || (twoState(b.entity) && !["info", "custom"].includes(b.kind))) ? `<button class="btn small" id="k-twolooks">Use a different look for each state</button>` : ""}</div>`;
+}
+
+function pageInspector() {
+  const p = P(), v = S.view, page = PAGE(), im = page.image || { type: "none" };
+  return `<div class="insp">
+    <div class="field"><label for="pg-name">Page name</label><input type="text" id="pg-name" value="${esc(v.page)}"><span class="note" id="pg-name-note">Buttons that open this page follow the new name.</span></div>
+    <div class="field"><label><input type="checkbox" id="pg-start"${p.start === v.page ? " checked disabled" : ""}> Show this page when the panel starts</label></div>
+    <div class="field"><label for="pg-image">Picture across all keys</label>
+      <select id="pg-image">${[["none", "None"], ["clock", "Clock"], ["picture", "Picture"]].map(([k, l]) => `<option value="${k}"${im.type === k ? " selected" : ""}>${l}</option>`).join("")}${im.type === "camera" ? `<option value="camera" selected>Camera (set in the file)</option>` : ""}</select>
+      ${im.type === "clock" ? `<select id="pg-clockfont" aria-label="Clock font">${Object.entries(CLOCK_FONTS).map(([k, f]) => `<option value="${k}"${(im.font || "montserrat") === k ? " selected" : ""}>${f.label}</option>`).join("")}</select><select id="pg-clockhours" aria-label="12 or 24 hour"><option value="24"${im.hours !== 12 ? " selected" : ""}>24-hour (19:41)</option><option value="12"${im.hours === 12 ? " selected" : ""}>12-hour (7:41 PM)</option></select><select id="pg-clockstyle" aria-label="Clock style"><option value="digits"${im.style === "digits" ? " selected" : ""}>One digit per key (easiest to read)</option><option value="span"${im.style === "span" ? " selected" : ""}>One big clock across the panel</option></select>
+        <span class="note">${im.style === "digits" ? "Each digit sits in its own key at its natural shape, as big as the key allows." : "The time is drawn once and cut into pieces, so the gaps between keys run through the digits."}</span>` : ""}
+      ${im.type === "picture" ? `<input type="file" id="pg-file" accept="image/png,image/jpeg,image/gif,image/webp" aria-label="Choose a picture"><span class="note">${im.file ? esc(im.file.split("/").pop()) + "." : "Choose a picture."} It's cropped to fill the panel.</span>` : ""}
+</div>
+    <div class="field"><label><input type="checkbox" id="pg-bright-on"${page.brightness != null ? " checked" : ""}> Own brightness on this page</label>
+      ${page.brightness != null ? `<label for="pg-bright" class="note">Brightness: <span id="pg-bright-val">${page.brightness}%</span></label><input type="range" id="pg-bright" min="0" max="100" step="5" value="${page.brightness}">` : `<span class="note">Uses the panel's brightness.</span>`}</div>
+    <div class="field"><label for="pg-tapany">Tapping a key with no button</label>
+      <select id="pg-tapany"><option value="">Does nothing</option><option value="back"${page.tapAny === "back" ? " selected" : ""}>Goes back</option></select></div>
+    ${Object.keys(p.pages).length > 1 ? `<button class="btn small danger${v.armed === "page" ? " armed" : ""}" id="pg-delete">${v.armed === "page" ? "Click again to delete this page" : "Delete this page"}</button>` : `<span class="note" style="font-size:12px;color:var(--muted)">A panel needs at least one page.</span>`}
+  </div>`;
+}
+
+function panelInspector() {
+  const p = P(), v = S.view;
+  return `<div class="insp">
+    <div class="field"><label for="pn-name">Panel name</label><input type="text" id="pn-name" value="${esc(v.panel)}"><span class="note" id="pn-name-note">Letters, numbers and underscores.</span></div>
+    <div class="field"><label for="pn-size">Size</label><select id="pn-size">${Object.entries(SIZES).map(([k, s]) => `<option value="${k}"${p.size === k ? " selected" : ""}>${s.label}</option>`).join("")}</select>
+      <span class="note">The panel reports this itself when it's plugged in. Change it here if you swap the deck.</span></div>
+    <div class="field"><label for="pn-start">Start page</label><select id="pn-start">${Object.keys(p.pages).map(n => `<option${p.start === n ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
+    <div class="sect"><span class="head">Brightness</span>
+      <div class="field"><select id="pn-bmode" aria-label="How brightness is set">${[["fixed", "Always the same"], ["schedule", "Changes with the time of day"], ["follow", "Set by an HA slider"]].map(([k, l]) => `<option value="${k}"${p.bmode === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+      ${p.bmode === "fixed" ? `<div class="field"><label for="pn-bright">Brightness: <span id="pn-bright-val">${p.brightness}%</span></label><input type="range" id="pn-bright" min="5" max="100" step="5" value="${p.brightness}"></div>` : ""}
+      ${p.bmode === "schedule" ? `<div class="field"><span class="lab">From this time, use this brightness</span>
+        ${p.schedule.map((st, i) => `<div class="sched"><input type="text" id="st-at-${i}" data-step="${i}" value="${esc(st.at)}" placeholder="07:00 or sunset" aria-label="Start time"><input type="number" id="st-lv-${i}" data-step="${i}" min="0" max="100" step="5" value="${st.level}" aria-label="Brightness %"><button class="x" data-delstep="${i}" aria-label="Remove this step">×</button></div>`).join("")}
+        <button class="btn small" id="st-add">+ Add a time</button>
+        <span class="note">Times like 07:00, or sunrise and sunset from HA. Each brightness lasts until the next time.</span></div>` : ""}
+      ${p.bmode === "follow" ? `<div class="field"><label for="pn-follow">HA number helper</label><input type="text" id="pn-follow" list="num-list" value="${esc(p.follow)}" placeholder="input_number.office_panel_brightness">
+        <datalist id="num-list">${Object.keys(S.entities).filter(e => e.startsWith("input_number.")).map(e => `<option value="${e}">`).join("")}</datalist>
+        <span class="note">Make a Number helper (0 to 100) in HA. Your automations can then set the panel's brightness, for bedtime or a movie.</span></div>` : ""}
+      <span class="note" style="font-size:12px;color:var(--muted)">Brightness is one backlight for the whole panel, so every key changes together.</span>
+    </div>
+    <div class="sect"><span class="head">Sleep Mode</span>
+      <span class="note" style="color:var(--muted)">Changes page and brightness when inactive.</span>
+      <div class="inline trig"><label><input type="checkbox" id="sl-idle"${p.sleep.idle ? " checked" : ""}> Sleep after</label><input type="number" id="sl-after" min="1" max="240" value="${p.sleep.after}" aria-label="Minutes"> minutes of inactivity</div>
+      <div class="inline trig"><label><input type="checkbox" id="sl-night"${p.sleep.night ? " checked" : ""}> Sleep between</label><input type="text" id="sl-from" value="${esc(p.sleep.from)}" aria-label="From"> and <input type="text" id="sl-to" value="${esc(p.sleep.to)}" aria-label="To"></div>
+      ${p.sleep.night ? `<div class="inline" style="padding-left:22px;font-size:13px"><label for="sl-awake">If a press wakes it, back to sleep after</label><input type="number" id="sl-awake" min="5" max="3600" step="5" value="${p.sleep.awake}"> seconds</div>` : ""}
+      ${sleepOn(p) ? `<div class="field"><label for="sl-page">While asleep, show</label><select id="sl-page"><option value="">The page it was on</option>${Object.keys(p.pages).map(n => `<option value="${esc(n)}"${p.sleep.page === n ? " selected" : ""}>Page ${esc(n)}</option>`).join("")}</select></div>
+        <div class="field"><label for="sl-level">Sleep brightness: <span id="sl-level-val">${p.sleep.level}%</span></label><input type="range" id="sl-level" min="0" max="50" step="1" value="${p.sleep.level}"></div>` : ""}
+    </div>
+    <div class="field"><span class="lab">Panel ID</span><span class="mono">${esc(p.id)}</span></div>
+    <button class="btn small danger${v.armed === "panel" ? " armed" : ""}" id="pn-delete">${v.armed === "panel" ? "Click again to remove this panel" : "Remove this panel"}</button>
+  </div>`;
+}
+
+function dialInspector() {
+  const v = S.view, d = DIALS(PAGE())[v.dial];
+  if (!d) return `<div class="insp"><div class="empty">Dial ${v.dial} isn't set up on this page.<button class="btn primary small" id="d-add">Set up this dial</button></div></div>`;
+  const list = Object.keys(S.entities).filter(e => DIAL_DOMAINS.includes(domainOf(e))).sort(), known = S.entities[d.entity] !== undefined, dom = domainOf(d.entity);
+  const presses = [["auto", `Default (${defaultPress(d.entity)})`], ["toggle", "Toggle it"], ["none", "Nothing"], ["page", "Go to another page"], ["back", "Go back"]];
+  if (d.press === "custom") presses.push(["custom", "As written in the file"]);
+  return `<div class="insp">
+    <div class="sect"><span class="head">What this dial turns</span>
+      <div class="field"><label for="d-entity">Entity</label>
+        <input type="text" id="d-entity" list="dial-entities" value="${esc(d.entity)}" placeholder="A light, speaker, shade, thermostat…" autocomplete="off">
+        <datalist id="dial-entities">${list.map(e => `<option value="${e}">${esc(S.names[e] || "")}</option>`).join("")}</datalist>
+        <span class="note${d.entity && !known ? " bad" : ""}" id="d-state">${d.entity ? (known ? `${esc(S.names[d.entity] || d.entity)}: now ${esc(S.dialInfo[d.entity]?.text ?? S.entities[d.entity])}` : "Home Assistant has no entity with this ID.") : "Turning sets a light's brightness, a speaker's volume, a shade's position, a thermostat's temperature, a fan's speed or a number helper."}</span></div>
+      <div class="field"><label for="d-step">Each click of the dial changes it by</label>
+        <input type="text" id="d-step" inputmode="decimal" value="${d.step ?? ""}" placeholder="${esc(DIAL_STEPS[dom] || "")}">
+        <span class="note" id="d-step-note">Leave empty for ${esc(DIAL_STEPS[dom] || "the usual step")}.</span></div>
+      <div class="field"><label for="d-press">Pushing the dial, or tapping the strip above it</label>
+        <select id="d-press">${presses.map(([k, l]) => `<option value="${k}"${d.press === k ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>
+        ${d.press === "page" ? pageSelect("d-page", d.page) : ""}</div></div>
+    <div class="sect"><span class="head">On the strip</span>
+      <div class="field"><label for="d-label">Name</label><input type="text" id="d-label" value="${esc(d.label)}" placeholder="${esc(S.names[d.entity] || "The entity's name")}"></div>
+      <div class="look"><div class="swrow"><span class="lab">Icon</span><button class="iconbtn" data-iconfor="dial">${d.icon ? svgIcon(d.icon) : ""}${v.iconFor === "dial" ? "Close" : d.icon ? "Change" : "Choose (or keep the default)"}</button></div>
+        ${v.iconFor === "dial" ? iconPicker("dial", d) : ""}
+        <div class="swrow"><span class="lab">Bar colour</span>${swatches("dial", "color", d.color || (DIAL_DEFAULTS[dom] || [])[1] || "amber")}</div></div></div>
+    <button class="btn small danger${v.armed === "dial" ? " armed" : ""}" id="d-remove">${v.armed === "dial" ? "Click again to clear this dial" : "Clear this dial"}</button>
+  </div>`;
+}
+
+function renderInspector() {
+  const v = S.view;
+  if (!P()) { $("inspector").innerHTML = `<h2>Settings</h2><div class="insp"><span class="note">Pick or add a panel.</span></div>`; return; }
+  if (v.mode === "try") {
+    const shown = Object.values(PAGE().buttons).flatMap(b => b.kind === "area" ? areaLights(b) : b.entity ? [b.entity] : []).concat(Object.values(DIALS(PAGE())).map(d => d.entity).filter(Boolean));
+    $("inspector").innerHTML = `<h2>Try it</h2><div class="insp"><span class="note" style="color:var(--muted)">Keys here run the same actions as the real panel, with your unsaved changes. Switch back to Edit to change things.</span><div class="states">${
+      [...new Set(shown)].map(e => `<span class="state">${esc(S.names[e] || e)}: ${esc(S.entities[e] ?? "?")}</span>`).join("")}</div></div>`;
+    return;
+  }
+  const tabs = [["panel", "Panel"], ["page", "Page"], ["key", v.dial ? `Dial ${v.dial}` : v.sel ? `Key ${v.sel}` : "Key"]];
+  $("inspector").innerHTML = `<div class="itabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-itab="${k}" aria-selected="${v.tab === k}"${k === "key" && !v.sel && !v.dial ? " disabled" : ""}>${l}</button>`).join("")}</div>`
+    + (v.tab === "panel" ? panelInspector() : v.tab === "key" && v.dial ? dialInspector() : v.tab === "key" && v.sel ? keyInspector() : pageInspector());
+  drawAllKeys();
+}
+
+function renderStatus() {
+  const n = S.problems.length;
+  $("status").innerHTML = n ? `<span class="bad">${n} problem${n > 1 ? "s" : ""}: ${esc(S.problems[0])}</span>` : S.dirty ? "Unsaved changes" : "Saved";
+  $("save").disabled = !S.dirty;
+}
+
+// The YAML view and problem list come from the server, so they match what Save writes.
+let previewTimer = null;
+function renderYaml() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    try {
+      const r = await api("api/preview", { config: toConfig() });
+      $("yaml").textContent = r.yaml; S.problems = r.problems; renderStatus();
+    } catch (e) { /* shown on save */ }
+  }, 300);
+}
+
+function render() {
+  $("mode-edit").setAttribute("aria-pressed", S.view.mode === "edit");
+  $("mode-try").setAttribute("aria-pressed", S.view.mode === "try");
+  renderSidebar(); renderHead(); renderTabs(); renderStage(); renderInspector(); renderYaml(); renderStatus();
+}
+const changed = () => { S.dirty = true; drawAllKeys(); renderYaml(); renderStatus(); };
+
+// ---------- Server ----------
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  return r.json();
+}
+function takeEntities(list) {
+  S.entities = Object.fromEntries(Object.entries(list).map(([k, v]) => [k, v.state]));
+  S.names = Object.fromEntries(Object.entries(list).map(([k, v]) => [k, v.name]));
+  S.dialInfo = Object.fromEntries(Object.entries(list).filter(([, v]) => v.dial).map(([k, v]) => [k, v.dial]));
+}
+async function load() {
+  const [icons, st] = await Promise.all([api("api/icons"), api("api/state")]);
+  CODEPOINTS = icons;
+  takeEntities(st.entities);
+  S.areas = Object.fromEntries(st.areas.map(a => [a.id, a]));
+  S.floors = Object.fromEntries(st.floors.map(f => [f.id, f.name]));
+  S.bridges = st.bridges; S.sun = st.sun; S.file = st.file;
+  S.rawTop = st.config || {};
+  S.panels = Object.fromEntries(Object.entries(st.config?.panels || {}).map(([n, p]) => [n, panelFrom(n, p)]));
+  S.problems = st.problems;
+  const first = Object.keys(S.panels)[0];
+  Object.assign(S.view, { panel: first || null, page: first ? S.panels[first].start : null });
+  if (first && !S.panels[first].pages[S.view.page]) S.view.page = Object.keys(S.panels[first].pages)[0];
+  $("file").textContent = st.file.split("/").pop();
+  render();
+  if (st.problems.length) toast(`${st.file.split("/").pop()} has problems: the page shows what it could read.`);
+}
+async function poll() {
+  try {
+    const r = await api("api/entities");
+    const before = JSON.stringify([S.entities, S.dialInfo]), bridges = JSON.stringify(S.bridges);
+    takeEntities(r.entities); S.bridges = r.bridges;
+    if (JSON.stringify([S.entities, S.dialInfo]) !== before) { drawAllKeys(); applyBrightness(); if (S.view.mode === "try") renderInspector(); }
+    if (JSON.stringify(S.bridges) !== bridges) renderSidebar();
+  } catch (e) { /* the next poll retries */ }
+}
+
+// ---------- Actions ----------
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 3500); }
+function newPage(base = "page") { const p = P(); let n = 1; while (p.pages[`${base}_${n}`]) n++; const name = `${base}_${n}`; p.pages[name] = { raw: {}, buttons: {}, dials: {}, tapAny: null, brightness: null, image: null }; return name; }
+function eachLink(fn) {
+  for (const pg of Object.values(P().pages)) {
+    for (const b of Object.values(pg.buttons)) {
+      if (b.kind === "page") fn(b, "page");
+      for (const w of ["hold", "double"]) if (b.extra?.[w]?.on && b.extra[w].kind === "page") fn(b.extra[w], "page");
+    }
+    for (const d of Object.values(DIALS(pg))) if (d.press === "page") fn(d, "page");
+  }
+}
+function deletePage(name) {
+  const p = P(); let broken = 0;
+  delete p.pages[name];
+  if (p.sleep.page === name) p.sleep.page = "";
+  eachLink((o, f) => { if (o[f] === name) { o[f] = null; broken++; } });
+  if (p.start === name) p.start = Object.keys(p.pages)[0];
+  Object.assign(S.view, { page: p.start, sel: null, dial: null, tab: "page", confirmPage: null, armed: null, history: [] });
+  S.dirty = true; render(); toast(`Deleted page “${name}”.${broken ? ` ${broken} button(s) that opened it now need a new page.` : ""}`);
+}
+function blankButton(kind) {
+  const base = { raw: {}, kind, entity: "", label: "", labelPos: "bottom", confirm: false, tap: "toggle", extra: { hold: extraFrom(null), double: extraFrom(null) }, look: { icon: KINDS.find(k => k[0] === kind)[2], bg: "black", fg: null } };
+  if (kind === "page") { const other = Object.keys(P().pages).find(n => n !== S.view.page); base.page = other || newPage(); base.label = base.page; }
+  if (kind === "back") base.label = "Back";
+  if (kind === "area") { const a = Object.keys(S.areas)[0] || ""; Object.assign(base, { scope: "area", target: a, label: S.areas[a]?.name || "", looks: { on: { icon: "mdi:home-lightbulb", bg: "amber", fg: null }, off: { icon: "mdi:home-lightbulb-outline", bg: "black", fg: "grey" } } }); }
+  return base;
+}
+function setEntity(b, e) {
+  const oldAuto = b.label === autoLabel(b.entity);
+  b.entity = e; const d = DOMAINS[domainOf(e)], known = S.entities[e] !== undefined;
+  if (d && known && !["info", "custom"].includes(b.kind)) { if (!b.looks || b.looksAuto) { b.looks = { on: { ...d.on }, off: { ...d.off }, ...(d.paused ? { paused: { ...d.paused } } : {}) }; b.looksAuto = true; } }
+  if (b.kind === "info" && known && !b.label) b.label = "{{ state }}";
+  if (known && (!b.label || oldAuto)) b.label = autoLabel(e);
+}
+const autoLabel = e => { const n = S.names[e] || (e || "").split(".")[1] || ""; return n.split(/\s+/).slice(-1)[0] || ""; };
+const lookFor = (b, which) => which === "one" ? b.look : b.looks[which];
+
+// Try it: what a press does, using the page's unsaved model.
+async function tryPress(n) {
+  const v = S.view, page = PAGE(), b = page.buttons[n], log = $("trylog");
+  if (!b) { if (page.tapAny === "back") goBack(); return; }
+  if (b.kind === "page" && b.page) { v.history.push(v.page); v.page = b.page; render(); log.textContent = `Opened page ${b.page}`; return; }
+  if (b.kind === "back") { goBack(); return; }
+  if (b.tap === "none" && ["device", "area"].includes(b.kind)) { log.textContent = "Tapping this key does nothing"; return; }
+  if (b.kind === "info") { log.textContent = `${S.names[b.entity] || b.entity}: ${S.entities[b.entity]}`; return; }
+  if (b.confirm && !b.confirmShow) { b.confirmShow = true; drawAllKeys(); log.textContent = "Press again to run it"; setTimeout(() => { b.confirmShow = false; drawAllKeys(); }, 3000); return; }
+  b.confirmShow = false;
+  try { await api("api/press", { button: omit(buttonTo(b, 1), ["key"]) }); log.textContent = `Ran ${b.kind === "area" ? placeName(b) : S.names[b.entity] || b.entity || b.action}`; setTimeout(poll, 400); setTimeout(poll, 1500); }
+  catch (e) { log.textContent = `Didn't run: ${e.message}`; }
+  drawAllKeys();
+}
+async function tryDial(n) {
+  const v = S.view, page = PAGE(), d = DIALS(page)[n], log = $("trylog");
+  if (!d) { if (page.tapAny === "back") goBack(); return; }
+  if (d.press === "page" && d.page) { v.history.push(v.page); v.page = d.page; render(); log.textContent = `Opened page ${d.page}`; return; }
+  if (d.press === "back") { goBack(); return; }
+  try { const r = await api("api/press", { dial: omit(dialTo(d, 1), ["dial"]) }); log.textContent = r.ran ? `Pushed dial ${n}: ${S.names[d.entity] || d.entity}` : `Pushing dial ${n} does nothing`; setTimeout(poll, 400); setTimeout(poll, 1500); }
+  catch (e) { log.textContent = `Didn't run: ${e.message}`; }
+}
+async function tryTurn(n, by) {
+  const d = DIALS(PAGE())[n], log = $("trylog");
+  if (!d?.entity) { log.textContent = `Dial ${n} doesn't turn anything on this page`; return; }
+  try { const r = await api("api/turn", { dial: omit(dialTo(d, 1), ["dial"]), detents: by }); log.textContent = r.ran ? `${S.names[d.entity] || d.entity}: ${r.text}` : "Turning does nothing for this entity"; setTimeout(poll, 400); setTimeout(poll, 1500); }
+  catch (e) { log.textContent = `Didn't turn: ${e.message}`; }
+}
+function goBack() { const v = S.view; if (v.history.length) { v.page = v.history.pop(); render(); $("trylog").textContent = "Went back"; } else $("trylog").textContent = "Already on the first page"; }
+
+async function save() {
+  try {
+    const r = await api("api/save", { config: toConfig() });
+    $("yaml").textContent = r.yaml; S.problems = r.problems;
+    if (r.ok) { S.dirty = false; toast(`Saved to ${$("file").textContent}. The panel updates in a second or two.`); }
+    else toast(`Not saved: ${r.problems.length} problem(s). The first: ${r.problems[0]}`);
+  } catch (e) { toast(`Couldn't save: ${e.message}`); }
+  renderStatus();
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("button, canvas.key, canvas.dialseg"); if (!el) return;
+  const v = S.view, p = P(), page = PAGE();
+  if (el.id !== "k-remove" && el.id !== "d-remove" && el.id !== "pg-delete" && el.id !== "pn-delete") v.armed = null;
+  if (el.id === "mode-edit" || el.id === "mode-try") { v.mode = el.id === "mode-edit" ? "edit" : "try"; v.sel = null; v.dial = null; v.tab = "page"; v.confirmPage = null; v.history = []; $("trylog").textContent = ""; render(); return; }
+  if (el.id === "st-add") { p.schedule.push({ at: "12:00", level: 50 }); renderInspector(); changed(); applyBrightness(); return; }
+  if (el.dataset.delstep) { p.schedule.splice(+el.dataset.delstep, 1); renderInspector(); changed(); applyBrightness(); return; }
+  if (el.id === "save") { save(); return; }
+  if (el.dataset.panel) { v.panel = el.dataset.panel; v.page = P().pages[P().start] ? P().start : Object.keys(P().pages)[0]; Object.assign(v, { sel: null, dial: null, tab: "page", history: [], confirmPage: null }); render(); return; }
+  if (el.dataset.page) { Object.assign(v, { page: el.dataset.page, sel: null, dial: null, tab: "page", history: [], confirmPage: null }); render(); return; }
+  if (el.dataset.delpage) { v.confirmPage = el.dataset.delpage; renderTabs(); return; }
+  if ("delpageNo" in el.dataset) { v.confirmPage = null; renderTabs(); return; }
+  if (el.dataset.delpageYes) { deletePage(el.dataset.delpageYes); return; }
+  if ("newpage" in el.dataset) { v.page = newPage(); v.sel = null; v.dial = null; v.tab = "page"; S.dirty = true; render(); toast(`Added ${v.page}. Rename it in the Page settings.`); return; }
+  if (el.dataset.itab) { v.tab = el.dataset.itab; v.iconFor = null; renderInspector(); return; }
+  if (el.dataset.adopt) {
+    const i = el.dataset.index, name = slug($("newname-" + i).value) || "panel";
+    if (S.panels[name]) { toast(`There's already a panel called ${name}.`); return; }
+    S.panels[name] = panelFrom(name, { id: el.dataset.adopt, size: $("newsize-" + i).value, brightness: 70, pages: { home: {} } });
+    Object.assign(v, { panel: name, page: "home", sel: null, dial: null, tab: "page", history: [] }); S.dirty = true; render();
+    toast(`Added ${name}. Click a key to add its first button, then Save.`); return;
+  }
+  if (el.matches("canvas.key")) {
+    const n = +el.dataset.key;
+    if (v.mode === "edit") { v.sel = n; v.dial = null; v.tab = "key"; v.iconFor = null; v.iconSearch = ""; renderStage(); renderInspector(); return; }
+    tryPress(n); return;
+  }
+  if (el.dataset.turn) { tryTurn(+el.dataset.turn, +el.dataset.by); return; }
+  if (el.dataset.dial) {
+    const n = +el.dataset.dial;
+    if (v.mode === "edit") { Object.assign(v, { dial: n, sel: null, tab: "key", iconFor: null, iconSearch: "" }); renderStage(); renderInspector(); return; }
+    tryDial(n); return;
+  }
+  const d = v.dial && page ? DIALS(page)[v.dial] : null;
+  if (el.id === "d-add") { DIALS(page)[v.dial] = dialFrom({}); changed(); renderInspector(); return; }
+  if (el.id === "d-remove") { if (v.armed !== "dial") { v.armed = "dial"; renderInspector(); return; } delete DIALS(page)[v.dial]; v.armed = null; changed(); render(); return; }
+  if ("icon" in el.dataset && el.dataset.which === "dial" && d) { d.icon = el.dataset.icon || null; v.iconFor = null; renderInspector(); changed(); return; }
+  if (el.dataset.sw === "dial" && d) { d.color = el.dataset.color || null; renderInspector(); changed(); return; }
+  const b = page?.buttons[v.sel];
+  if (el.id === "k-add") { page.buttons[v.sel] = blankButton("device"); changed(); renderInspector(); return; }
+  if (el.dataset.kind && b) {
+    const nb = blankButton(el.dataset.kind); nb.label = b.label || nb.label; nb.labelPos = b.labelPos; nb.raw = omit(b.raw, ["when", "tap", "lights", "entity"]); nb.extra = b.extra; nb.confirm = b.confirm;
+    if (["device", "script", "info", "custom"].includes(el.dataset.kind) && b.entity && ["device", "script", "info", "custom"].includes(b.kind)) setEntity(nb, b.entity);
+    if (el.dataset.kind === "timer") { nb.countdown = true; nb.tap = "toggle"; if (domainOf(b.entity) === "timer") setEntity(nb, b.entity); }
+    fixExtras(nb); page.buttons[v.sel] = nb; renderInspector(); changed(); return;
+  }
+  if (el.id === "k-twolooks" && b) { b.looks = { on: { ...b.look }, off: { ...b.look }, ...(domainOf(b.entity) === "timer" ? { paused: { ...b.look } } : {}) }; renderInspector(); changed(); return; }
+  if (el.id === "k-onelook" && b) { b.look = { ...b.looks.on }; b.looks = null; b.raw = omit(b.raw, ["when"]); renderInspector(); changed(); return; }
+  if (el.id === "k-remove") { if (v.armed !== "key") { v.armed = "key"; renderInspector(); return; } delete page.buttons[v.sel]; v.armed = null; changed(); render(); return; }
+  if (el.dataset.iconfor) { v.iconFor = v.iconFor === el.dataset.iconfor ? null : el.dataset.iconfor; v.iconSearch = ""; renderInspector(); return; }
+  if ("icon" in el.dataset && b) { lookFor(b, el.dataset.which).icon = el.dataset.icon || null; b.looksAuto = false; v.iconFor = null; renderInspector(); changed(); return; }
+  if (el.dataset.sw && b) { lookFor(b, el.dataset.sw)[el.dataset.field] = el.dataset.color || null; b.looksAuto = false; renderInspector(); changed(); return; }
+  if (el.id === "pg-delete") { if (v.armed !== "page") { v.armed = "page"; renderInspector(); return; } deletePage(v.page); return; }
+  if (el.id === "pn-delete") {
+    if (v.armed !== "panel") { v.armed = "panel"; renderInspector(); return; }
+    const gone = v.panel; delete S.panels[gone]; const next = Object.keys(S.panels)[0] || null;
+    Object.assign(v, { panel: next, page: next ? S.panels[next].start : null, sel: null, dial: null, tab: "page", armed: null }); S.dirty = true; render(); toast(`Removed ${gone}. Save to make it stick.`); return;
+  }
+  if (v.armed) renderInspector();
+});
+
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("canvas.key, canvas.dialseg")) { e.preventDefault(); e.target.click(); } });
+window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+document.addEventListener("input", e => {
+  const v = S.view, b = v.sel && PAGE()?.buttons[v.sel], id = e.target.id;
+  // Never rebuild the box being typed in: replacing a focused input mid-keystroke makes
+  // browsers (Chrome/Safari with a datalist open, especially in HA's iframe) replay keys.
+  if (id === "icon-search") {
+    v.iconSearch = e.target.value;
+    const dial = v.iconFor === "dial" && DIALS(PAGE())[v.dial];
+    if (dial) $("icon-grid").outerHTML = iconGrid("dial", dial);
+    else if (b && v.iconFor) $("icon-grid").outerHTML = iconGrid(v.iconFor, lookFor(b, v.iconFor));
+    return;
+  }
+  if (id === "k-entity" && b) {
+    const own = canOwn(b), dim = canDim(b);
+    setEntity(b, e.target.value.trim());
+    if (canOwn(b) !== own || canDim(b) !== dim) { fixExtras(b); $("k-more").outerHTML = morePresses(b); }
+    const known = S.entities[b.entity] !== undefined, n = $("k-state");
+    n.textContent = b.entity ? (known ? `${S.names[b.entity] || b.entity}: now ${S.entities[b.entity]}` : "Home Assistant has no entity with this ID.") : ""; n.classList.toggle("bad", !!b.entity && !known);
+    $("k-label").value = b.label; $("k-label-note").hidden = !b.entity; $("k-looks").outerHTML = looksSect(b);
+    changed();
+  }
+  if (id === "k-label" && b) { b.label = e.target.value; changed(); }
+  const xm = /^k-(hold|double)-(entity|action|data)$/.exec(id);
+  if (xm && b) { const x = b.extra[xm[1]]; x[xm[2]] = xm[2] === "data" ? e.target.value : e.target.value.trim(); changed(); }
+  const d = v.dial && PAGE() ? DIALS(PAGE())[v.dial] : null;
+  if (id === "d-entity" && d) {
+    d.entity = e.target.value.trim(); const known = S.entities[d.entity] !== undefined, n = $("d-state");
+    n.textContent = d.entity ? (known ? `${S.names[d.entity] || d.entity}: now ${S.dialInfo[d.entity]?.text ?? S.entities[d.entity]}` : "Home Assistant has no entity with this ID.") : ""; n.classList.toggle("bad", !!d.entity && !known);
+    const step = DIAL_STEPS[domainOf(d.entity)] || ""; $("d-step").placeholder = step; $("d-step-note").textContent = `Leave empty for ${step || "the usual step"}.`;
+    $("d-label").placeholder = S.names[d.entity] || "The entity's name";
+    const auto = $("d-press").options[0]; if (auto) auto.textContent = `Default (${defaultPress(d.entity)})`;
+    changed();
+  }
+  if (id === "d-label" && d) { d.label = e.target.value; changed(); }
+  if (id === "d-step" && d) { const n = parseFloat(e.target.value); d.step = n > 0 ? n : null; changed(); }
+  if (id === "k-action" && b) { b.action = e.target.value; changed(); }
+  if (id === "k-data" && b) { b.data = e.target.value; changed(); }
+  if (id === "pn-bright") { P().brightness = +e.target.value; $("pn-bright-val").textContent = e.target.value + "%"; changed(); applyBrightness(); }
+  if (id === "pg-bright") { PAGE().brightness = +e.target.value; $("pg-bright-val").textContent = e.target.value + "%"; changed(); applyBrightness(); }
+  if (e.target.dataset.step) { const st = P().schedule[+e.target.dataset.step]; if (id.startsWith("st-at")) st.at = e.target.value.trim(); else st.level = Math.max(0, Math.min(100, +e.target.value || 0)); changed(); applyBrightness(); }
+  if (id === "pn-follow") { P().follow = e.target.value.trim(); changed(); applyBrightness(); }
+  if (id === "sl-level") { P().sleep.level = +e.target.value; $("sl-level-val").textContent = e.target.value + "%"; changed(); }
+  if (id === "sl-awake") { P().sleep.awake = Math.max(5, Math.min(3600, Math.round(+e.target.value) || 60)); changed(); }
+  if (id === "sl-after") { P().sleep.after = Math.max(1, +e.target.value || 1); changed(); }
+  if (id === "sl-from" || id === "sl-to") { P().sleep[id.slice(3)] = e.target.value.trim(); changed(); }
+});
+
+document.addEventListener("change", async e => {
+  const v = S.view, p = P(), page = PAGE(), b = v.sel && page?.buttons[v.sel], id = e.target.id;
+  if (id === "k-tap" && b) { b.tap = e.target.value; changed(); }
+  const d = v.dial && page ? DIALS(page)[v.dial] : null;
+  if (id === "d-press" && d) { d.press = e.target.value; if (d.press === "page" && !d.page) d.page = Object.keys(p.pages).find(n => n !== v.page) || newPage(); renderInspector(); changed(); }
+  if (id === "d-page" && d) { let target = e.target.value; if (target === "__new") { target = newPage(); renderTabs(); } d.page = target; renderInspector(); changed(); }
+  if (id === "k-confirm" && b) { b.confirm = e.target.checked; changed(); }
+  if (id === "k-asleep" && b) { b.asleep = e.target.checked; changed(); }
+  if (id === "k-countdown" && b) { b.countdown = e.target.checked; changed(); }
+  const xm = /^k-(hold|double)-(on|kind|page)$/.exec(id);
+  if (xm && b) {
+    const x = b.extra[xm[1]];
+    if (xm[2] === "on") { x.on = e.target.checked; if (x.on && !x.kind) x.kind = xm[1] === "hold" && canDim(b) ? "dim_brighten" : canOwn(b) ? "toggle" : "script"; }
+    if (xm[2] === "kind") x.kind = e.target.value;
+    if (xm[2] === "page") { let target = e.target.value; if (target === "__new") { target = newPage(); renderTabs(); toast(`Added ${target}. It's empty until you add buttons to it.`); } x.page = target; }
+    if (x.kind === "page" && !x.page) { const other = Object.keys(p.pages).find(n => n !== v.page); x.page = other || newPage(); if (!other) renderTabs(); }
+    renderInspector(); changed();
+  }
+  if (id === "k-scope" && b) { const old = placeName(b); b.scope = e.target.value; b.target = b.scope === "floor" ? Object.keys(S.floors)[0] || "" : Object.keys(S.areas)[0] || ""; if (!b.label || b.label === old) b.label = placeName(b); renderInspector(); changed(); }
+  if (id === "k-target" && b) { const old = placeName(b); b.target = e.target.value; if (!b.label || b.label === old) b.label = placeName(b); renderInspector(); changed(); }
+  if (id === "k-labelpos" && b) { b.labelPos = e.target.value; changed(); }
+  if (id === "k-page" && b) {
+    let target = e.target.value; if (target === "__new") { target = newPage(); renderTabs(); toast(`Added ${target}. It's empty until you add buttons to it.`); }
+    if (!b.label || b.label === b.page) b.label = target; b.page = target;
+    renderInspector(); changed();
+  }
+  if (id === "pg-name") {
+    const n = slug(e.target.value), old = v.page;
+    if (!n || (n !== old && p.pages[n])) { $("pg-name-note").textContent = n ? `There's already a page called ${n}.` : "A page needs a name."; $("pg-name-note").classList.add("bad"); return; }
+    if (n === old) return;
+    p.pages = Object.fromEntries(Object.entries(p.pages).map(([k, val]) => [k === old ? n : k, val]));
+    eachLink((o, f) => { if (o[f] === old) o[f] = n; }); if (p.start === old) p.start = n; if (p.sleep.page === old) p.sleep.page = n; v.page = n; S.dirty = true; render(); toast(`Renamed to ${n}.`);
+  }
+  if (id === "pg-start" && e.target.checked) { p.start = v.page; S.dirty = true; render(); }
+  if (id === "pg-image") { page.image = e.target.value === "none" ? null : e.target.value === "clock" ? { type: "clock", style: "digits", font: "montserrat", hours: 24, raw: {} } : { type: "picture", file: "", raw: {} }; renderInspector(); renderStage(); changed(); }
+  if (id === "pg-clockfont") { page.image.font = e.target.value; changed(); }
+  if (id === "pg-clockhours") { page.image.hours = +e.target.value; changed(); }
+  if (id === "pg-clockstyle") { page.image.style = e.target.value; renderInspector(); changed(); }
+  if (id === "pn-bmode") { p.bmode = e.target.value; renderInspector(); changed(); applyBrightness(); }
+  if (id === "pg-bright-on") { page.brightness = e.target.checked ? 30 : null; renderInspector(); changed(); applyBrightness(); }
+  if (id === "sl-idle" || id === "sl-night") { p.sleep[id.slice(3)] = e.target.checked; if (!p.pages[p.sleep.page]) p.sleep.page = ""; renderInspector(); changed(); }
+  if (id === "sl-page") { p.sleep.page = e.target.value; changed(); }
+  if (id === "pg-tapany") { page.tapAny = e.target.value || null; changed(); }
+  if (id === "pg-file" && e.target.files[0]) {
+    const f = e.target.files[0], form = new FormData(); form.append("file", f);
+    try {
+      const r = await fetch("api/upload", { method: "POST", body: form }); if (!r.ok) throw new Error(await r.text());
+      const { file } = await r.json(), img = new Image();
+      img.onload = () => { uploads[file] = img; page.image = { type: "picture", file, raw: page.image?.raw || {} }; renderInspector(); renderStage(); changed(); };
+      img.src = URL.createObjectURL(f);
+    } catch (err) { toast(`Couldn't upload: ${err.message}`); }
+  }
+  if (id === "pn-name") {
+    const n = slug(e.target.value), old = v.panel;
+    if (!n || (n !== old && S.panels[n])) { $("pn-name-note").textContent = n ? `There's already a panel called ${n}.` : "A panel needs a name."; $("pn-name-note").classList.add("bad"); return; }
+    if (n === old) return;
+    S.panels = Object.fromEntries(Object.entries(S.panels).map(([k, val]) => [k === old ? n : k, val])); v.panel = n; S.dirty = true; render(); toast(`Renamed to ${n}.`);
+  }
+  if (id === "pn-size") { p.size = e.target.value; if (v.sel > dims(p).cols * dims(p).rows || v.dial > (dims(p).dials || 0)) { v.sel = null; v.dial = null; v.tab = "panel"; } S.dirty = true; render(); }
+  if (id === "pn-start") { p.start = e.target.value; S.dirty = true; render(); }
+});
+
+// Drag one key onto another to swap them, or one dial (its knob or its part of the strip) onto another dial.
+// Keys only swap with keys and dials only with dials.
+let dragFrom = null;
+const DRAG_SEL = "canvas.key, canvas.dialseg, .knob[data-dial]";
+const dragKind = el => el.matches("canvas.key") ? "key" : "dial";
+const dragNum = el => +(el.dataset.key || el.dataset.dial);
+const clearDrop = () => document.querySelectorAll(".drop").forEach(x => x.classList.remove("drop"));
+// Where a drag would land: the same kind of thing, and not the one being dragged.
+function dropTarget(e) {
+  const t = e.target.closest?.(DRAG_SEL);
+  if (!t || !dragFrom || S.view.mode !== "edit" || dragKind(t) !== dragFrom.kind || dragNum(t) === dragFrom.n) return null;
+  return t;
+}
+document.addEventListener("dragstart", e => {
+  const el = e.target.closest?.(DRAG_SEL); if (!el || S.view.mode !== "edit") return;
+  dragFrom = { kind: dragKind(el), n: dragNum(el) }; e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", `${dragFrom.kind} ${dragFrom.n}`); } catch {}
+  // A knob is small: show the dial's strip picture under the pointer so it's clear what is moving.
+  if (dragFrom.kind === "dial") { const seg = document.querySelector(`canvas.dialseg[data-dial="${dragFrom.n}"]`); if (seg && e.dataTransfer.setDragImage) try { e.dataTransfer.setDragImage(seg, seg.clientWidth / 2, seg.clientHeight / 2); } catch {} }
+});
+document.addEventListener("dragover", e => {
+  const t = dropTarget(e); clearDrop(); if (!t) return; e.preventDefault(); e.dataTransfer.dropEffect = "move";
+  // Light up both halves of the target dial, the knob and its strip segment.
+  if (dragFrom.kind === "dial") document.querySelectorAll(`[data-dial="${dragNum(t)}"]`).forEach(x => x.classList.add("drop")); else t.classList.add("drop");
+});
+document.addEventListener("dragend", () => { dragFrom = null; clearDrop(); });
+document.addEventListener("drop", e => {
+  const t = dropTarget(e); if (!t) return; e.preventDefault();
+  const { kind, n: from } = dragFrom, to = dragNum(t), page = PAGE();
+  const set = kind === "key" ? page.buttons : DIALS(page), a = set[from], b = set[to];
+  if (a) set[to] = a; else delete set[to];
+  if (b) set[from] = b; else delete set[from];
+  Object.assign(S.view, kind === "key" ? { sel: to, dial: null } : { dial: to, sel: null }, { tab: "key", armed: null, iconFor: null });
+  dragFrom = null; S.dirty = true; render();
+});
+
+load().catch(e => { document.querySelector(".wrap").insertAdjacentHTML("afterbegin", `<p class="hint" style="color:var(--danger)">Couldn't load: ${esc(e.message)}</p>`); });
+setInterval(poll, 2000);
+document.fonts?.load("40px MDI").then(drawAllKeys);
+if (document.fonts) {
+  Promise.allSettled(Object.values(CLOCK_FONTS).map(f => document.fonts.load(f.css, "0123456789"))).then(drawAllKeys);
+  document.fonts.ready.then(drawAllKeys);
+}
+let lastW = 0; window.addEventListener("resize", () => { const w = $("stage").clientWidth; if (Math.abs(w - lastW) > 30) { lastW = w; renderStage(); } });
+setInterval(() => { if (PAGE()?.image?.type === "clock") drawAllKeys(); }, 15000);
+</script>
+</body>
+</html>

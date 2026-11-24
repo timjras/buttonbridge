@@ -1,0 +1,36 @@
+menu "Stream Deck bridge"
+
+    config BRIDGE_WIFI
+        bool "Join Wi-Fi (saved with tools/set_wifi.py)"
+        default y
+        depends on SOC_WIFI_SUPPORTED || ESP_WIFI_REMOTE_ENABLED
+        help
+            On the ESP32-P4 the radio is a separate ESP32-C6 running ESP-Hosted, reached through
+            the esp_wifi_remote and esp_hosted components.
+
+    config BRIDGE_ETHERNET
+        bool "Use the board's Ethernet port (IP101 PHY on RMII)"
+        default y if IDF_TARGET_ESP32P4
+        depends on SOC_EMAC_SUPPORTED
+
+    config BRIDGE_ETH_MDC_GPIO
+        int "Ethernet MDC GPIO"
+        depends on BRIDGE_ETHERNET
+        default 31
+
+    config BRIDGE_ETH_MDIO_GPIO
+        int "Ethernet MDIO GPIO"
+        depends on BRIDGE_ETHERNET
+        default 52
+
+    config BRIDGE_ETH_PHY_RST_GPIO
+        int "Ethernet PHY reset GPIO (-1 for none)"
+        depends on BRIDGE_ETHERNET
+        default 51
+
+    config BRIDGE_ETH_PHY_ADDR
+        int "Ethernet PHY address"
+        depends on BRIDGE_ETHERNET
+        default 1
+
+endmenu

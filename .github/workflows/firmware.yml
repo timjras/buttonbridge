@@ -1,0 +1,136 @@
+name: Firmware
+
+# Builds the bridge firmware for every board. On a version tag (v1.2.3) it also attaches the
+# files to a GitHub release and publishes the browser install page to GitHub Pages
+# (Settings > Pages > Source: GitHub Actions).
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "firmware/**"
+      - "docs/flasher/**"
+      - "tools/make_manifest.py"
+      - ".github/workflows/firmware.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: esp32p4          # ESP32-P4 silicon v3.x (current boards)
+            target: esp32p4
+            defaults: ""
+          - name: esp32p4-rev1     # ESP32-P4 silicon v1.x (early boards)
+            target: esp32p4
+            defaults: "sdkconfig.defaults;sdkconfig.defaults.esp32p4;sdkconfig.defaults.esp32p4-rev1"
+          - name: esp32s3
+            target: esp32s3
+            defaults: ""
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the firmware version
+        id: version
+        run: echo "version=$(sed -n 's/^set(PROJECT_VER "\(.*\)")/\1/p' firmware/bridge/CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.6   # main/idf_component.yml needs >=5.5.3
+          target: ${{ matrix.target }}
+          path: firmware/bridge
+          command: >-
+            idf.py -B build-ci -D SDKCONFIG=build-ci/sdkconfig
+            ${{ matrix.defaults && format('-D "SDKCONFIG_DEFAULTS={0}"', matrix.defaults) || '' }}
+            set-target ${{ matrix.target }} build &&
+            mkdir -p ../../out &&
+            cd build-ci &&
+            python -m esptool --chip ${{ matrix.target }} merge_bin
+            -o ../../../out/bridge-${{ matrix.name }}-${{ steps.version.outputs.version }}-full.bin @flash_args &&
+            cp sdbridge.bin ../../../out/bridge-${{ matrix.name }}-${{ steps.version.outputs.version }}-update.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.name }}
+          path: out/*.bin
+          if-no-files-found: error
+
+  # Firmware for the ESP32-P4 board's Wi-Fi chip (an ESP32-C6): Espressif's ESP-Hosted
+  # co-processor image, at the version main/idf_component.yml asks for, to send to a bridge with
+  # POST /coprocessor (see firmware/bridge/README.md).
+  coprocessor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the ESP-Hosted version
+        id: hosted
+        run: |
+          version=$(sed -n '/espressif\/esp_hosted:/,/version:/s/.*version: *"[~^=]*\([0-9.]*\)".*/\1/p' firmware/bridge/main/idf_component.yml)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.6
+          target: esp32c6
+          path: .
+          command: >-
+            idf.py create-project-from-example "espressif/esp_hosted==${{ steps.hosted.outputs.version }}:slave" &&
+            cd slave &&
+            idf.py set-target esp32c6 build &&
+            mkdir -p ../out &&
+            cp build/network_adapter.bin ../out/coprocessor-esp32c6-esp-hosted-${{ steps.hosted.outputs.version }}.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-coprocessor-esp32c6
+          path: out/*.bin
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, coprocessor]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: out
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.bin
+          generate_release_notes: true
+
+  install-page:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
+          path: site/firmware
+      - name: Assemble the install page
+        run: |
+          cp docs/flasher/index.html site/
+          python3 tools/make_manifest.py site/firmware "${GITHUB_REF_NAME#v}" > site/manifest.json
+          cat site/manifest.json
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

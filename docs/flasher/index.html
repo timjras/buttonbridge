@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ButtonBridge installer</title>
+<script type="module" src="https://unpkg.com/tasmota-esp-web-tools@12.3.2/dist/web/install-button.js?module"></script>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1c1f24; --muted: #5d6573; --accent: #2563eb; --line: #e3e6ea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161a; --card: #1d2026; --text: #e8eaee; --muted: #9aa2ae; --accent: #6b9bff; --line: #2c3038; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 16px; }
+  ol { padding-left: 20px; margin: 0; }
+  li { margin: 6px 0; }
+  .install { text-align: center; padding: 28px 22px; }
+  esp-web-install-button { --esp-tools-button-color: var(--accent); }
+  .note { color: var(--muted); font-size: 14px; }
+  a { color: var(--accent); }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ButtonBridge installer</h1>
+  <p class="lead">Puts the bridge firmware on an ESP32-P4 or ESP32-S3 board, straight from your browser.</p>
+
+  <div class="card">
+    <ol>
+      <li>Use <b>Chrome</b> or <b>Edge</b> on a computer (phones and Safari can't do this).</li>
+      <li>Plug the board into the computer with a USB cable that carries data:
+        the <b>USB-C</b> port on the Waveshare ESP32-P4 board, or the port marked <b>USB</b> on an ESP32-S3.</li>
+      <li>Press <b>Install</b>, pick the board's serial port, and confirm. It takes a minute or two.</li>
+    </ol>
+  </div>
+
+  <div class="card install">
+    <esp-web-install-button manifest="manifest.json">
+      <span slot="unsupported">This browser can't talk to USB devices. Open this page in Chrome or Edge on a computer.</span>
+      <span slot="not-allowed">This page needs to be opened over https.</span>
+    </esp-web-install-button>
+    <p class="note">The right file for your chip, including older ESP32-P4 revisions, is picked automatically.</p>
+  </div>
+
+  <div class="card">
+    <p><b>Board not found?</b> Hold its <b>BOOT</b> button while you plug it in, then press Install again.</p>
+    <p><b>Using Wi-Fi?</b> (ESP32-S3, or an ESP32-P4 without a network cable) After installing, keep the board plugged in and run <code>firmware/bridge/tools/set_wifi.py</code>: it asks for the network name and password. See <code>docs/INSTALL.md</code>.</p>
+    <p class="note" style="margin-bottom:0">Next: plug in the Stream Deck (and the network cable, unless it's on Wi-Fi), then add the ButtonBridge app to Home Assistant.
+      The full guide is in the repository's <code>docs/INSTALL.md</code>.</p>
+  </div>
+</main>
+</body>
+</html>
